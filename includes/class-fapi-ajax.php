@@ -1,7 +1,7 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class AWI_Ajax {
+class FAPI_Ajax {
 
     private static $instance;
 
@@ -12,27 +12,27 @@ class AWI_Ajax {
 
     private function __construct() {
         $actions = [
-            'awi_get_connections',
-            'awi_create_connection',
-            'awi_delete_connection',
-            'awi_duplicate_connection',
-            'awi_save_connection',
-            'awi_analyze_api',
-            'awi_save_field_map',
-            'awi_save_transforms',
-            'awi_fetch_preview',
-            'awi_run_import',
-            'awi_run_import_selected',
-            'awi_delete_imported',
-            'awi_get_progress',
-            'awi_get_logs',
-            'awi_clear_logs',
-            'awi_get_history',
-            'awi_rollback_import',
-            'awi_get_dashboard',
+            'fapi_get_connections',
+            'fapi_create_connection',
+            'fapi_delete_connection',
+            'fapi_duplicate_connection',
+            'fapi_save_connection',
+            'fapi_analyze_api',
+            'fapi_save_field_map',
+            'fapi_save_transforms',
+            'fapi_fetch_preview',
+            'fapi_run_import',
+            'fapi_run_import_selected',
+            'fapi_delete_imported',
+            'fapi_get_progress',
+            'fapi_get_logs',
+            'fapi_clear_logs',
+            'fapi_get_history',
+            'fapi_rollback_import',
+            'fapi_get_dashboard',
         ];
         foreach ( $actions as $action ) {
-            add_action( 'wp_ajax_' . $action, [ $this, str_replace( 'awi_', 'handle_', $action ) ] );
+            add_action( 'wp_ajax_' . $action, [ $this, str_replace( 'fapi_', 'handle_', $action ) ] );
         }
     }
 
@@ -40,7 +40,7 @@ class AWI_Ajax {
         if ( ! current_user_can( 'manage_woocommerce' ) ) {
             wp_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
         }
-        check_ajax_referer( 'awi_nonce', 'nonce' );
+        check_ajax_referer( 'fapi_nonce', 'nonce' );
     }
 
     private function conn_id(): string {
@@ -49,10 +49,72 @@ class AWI_Ajax {
         return $id;
     }
 
+    private function decode_json_array( $raw, string $message ): array {
+        $data = is_string( $raw ) ? json_decode( $raw, true ) : (array) $raw;
+        if ( ! is_array( $data ) || ( is_string( $raw ) && JSON_ERROR_NONE !== json_last_error() ) ) {
+            wp_send_json_error( [ 'message' => $message ], 400 );
+        }
+
+        return self::sanitize_nested_array( $data );
+    }
+
+    private static function sanitize_nested_array( array $data ): array {
+        $clean = [];
+
+        foreach ( $data as $key => $value ) {
+            $clean_key = is_int( $key ) ? $key : sanitize_key( (string) $key );
+
+            if ( is_array( $value ) ) {
+                $clean[ $clean_key ] = self::sanitize_nested_array( $value );
+            } elseif ( is_bool( $value ) ) {
+                $clean[ $clean_key ] = $value;
+            } elseif ( is_int( $value ) || is_float( $value ) ) {
+                $clean[ $clean_key ] = $value;
+            } else {
+                $clean[ $clean_key ] = sanitize_text_field( (string) $value );
+            }
+        }
+
+        return $clean;
+    }
+
+    private function sanitize_connection_value( string $key, $value ) {
+        switch ( $key ) {
+            case 'api_url':
+                return esc_url_raw( (string) $value );
+            case 'api_body':
+            case 'api_extra_params':
+                return sanitize_textarea_field( (string) $value );
+            case 'api_method':
+                $method = strtoupper( sanitize_key( (string) $value ) );
+                return in_array( $method, [ 'GET', 'POST' ], true ) ? $method : 'GET';
+            case 'sync_interval':
+                $interval = sanitize_key( (string) $value );
+                return in_array( $interval, [ 'hourly', 'twicedaily', 'daily', 'weekly' ], true ) ? $interval : 'hourly';
+            case 'publish_status':
+                $status = sanitize_key( (string) $value );
+                return in_array( $status, [ 'publish', 'draft', 'pending' ], true ) ? $status : 'publish';
+            case 'pagination_style':
+                $style = sanitize_key( (string) $value );
+                return in_array( $style, [ 'auto', 'header', 'body', 'empty-page' ], true ) ? $style : 'auto';
+            case 'perpage_size':
+            case 'import_processed':
+            case 'import_total':
+                return absint( $value );
+            case 'field_map':
+            case 'field_transforms':
+                return is_array( $value ) ? self::sanitize_nested_array( $value ) : [];
+            case 'conflict_fields':
+                return array_values( array_map( 'sanitize_key', (array) $value ) );
+            default:
+                return sanitize_text_field( (string) $value );
+        }
+    }
+
     public function handle_get_connections() {
         $this->check();
         
-        $conns = AWI_Connection_Manager::all();
+        $conns = FAPI_Connection_Manager::all();
         $list = [];
         foreach ($conns as $id => $data) {
             $data['id'] = $id;
@@ -65,21 +127,21 @@ class AWI_Ajax {
     public function handle_create_connection() {
         $this->check();
         $label = sanitize_text_field( wp_unslash( $_POST['label'] ?? 'New API Connection' ) );
-        $id    = AWI_Connection_Manager::create( $label );
+        $id    = FAPI_Connection_Manager::create( $label );
         wp_send_json_success( [ 'id' => $id, 'message' => 'Connection created.' ] );
     }
 
     public function handle_delete_connection() {
         $this->check();
         $id = $this->conn_id();
-        AWI_Connection_Manager::delete( $id );
+        FAPI_Connection_Manager::delete( $id );
         wp_send_json_success( [ 'message' => 'Connection deleted.' ] );
     }
 
     public function handle_duplicate_connection() {
         $this->check();
         $id     = $this->conn_id();
-        $new_id = AWI_Connection_Manager::duplicate( $id );
+        $new_id = FAPI_Connection_Manager::duplicate( $id );
         if ( ! $new_id ) wp_send_json_error( [ 'message' => 'Connection not found.' ] );
         wp_send_json_success( [ 'id' => $new_id, 'message' => 'Connection duplicated.' ] );
     }
@@ -87,7 +149,7 @@ class AWI_Ajax {
     public function handle_save_connection() {
         $this->check();
         $id      = $this->conn_id();
-        $allowed = array_keys( AWI_Connection_Manager::defaults() );
+        $allowed = array_keys( FAPI_Connection_Manager::defaults() );
         $data    = [];
         foreach ( $allowed as $key ) {
             if ( ! isset( $_POST[ $key ] ) ) continue;
@@ -96,17 +158,17 @@ class AWI_Ajax {
             if ( in_array( $key, [ 'sync_enabled','import_images','update_existing' ], true ) ) {
                 $val = in_array( (string)$val, [ '1','true','yes' ], true );
             } elseif ( $key === 'conflict_fields' || $key === 'field_transforms' ) {
-                $val = is_string( $val ) ? json_decode( $val, true ) : (array) $val;
+                $val = $this->decode_json_array( $val, 'Invalid JSON data.' );
             } else {
-                $val = sanitize_text_field( (string)$val );
+                $val = $this->sanitize_connection_value( $key, $val );
             }
             $data[ $key ] = $val;
         }
-        $ok = AWI_Connection_Manager::save( $id, $data );
+        $ok = FAPI_Connection_Manager::save( $id, $data );
         if ( ! $ok ) wp_send_json_error( [ 'message' => 'Connection not found.' ] );
 
-        AWI_Scheduler::unschedule( $id );
-        AWI_Scheduler::schedule( $id );
+        FAPI_Scheduler::unschedule( $id );
+        FAPI_Scheduler::schedule( $id );
 
         wp_send_json_success( [ 'message' => 'Connection saved.' ] );
     }
@@ -114,13 +176,13 @@ class AWI_Ajax {
     public function handle_analyze_api() {
         $this->check();
         $id       = $this->conn_id();
-        $settings = AWI_Connection_Manager::get( $id );
+        $settings = FAPI_Connection_Manager::get( $id );
         if ( ! $settings ) wp_send_json_error( [ 'message' => 'Connection not found.' ] );
 
         foreach ( [ 'api_url','api_method','api_bearer','api_basic_user','api_basic_pass',
                     'api_key_header','api_key_param','api_key_value','api_extra_params','api_body' ] as $f ) {
             if ( isset( $_POST[ $f ] ) ) {
-                $settings[ $f ] = sanitize_text_field( wp_unslash( $_POST[ $f ] ) );
+                $settings[ $f ] = $this->sanitize_connection_value( $f, wp_unslash( $_POST[ $f ] ) );
             }
         }
 
@@ -128,7 +190,7 @@ class AWI_Ajax {
             wp_send_json_error( [ 'message' => 'API URL is required.' ] );
         }
 
-        $analysis = AWI_API_Fetcher::test_and_analyze( $settings );
+        $analysis = FAPI_API_Fetcher::test_and_analyze( $settings );
         if ( isset( $analysis['error'] ) ) {
             wp_send_json_error( [ 'message' => $analysis['error'] ] );
         }
@@ -139,20 +201,20 @@ class AWI_Ajax {
         $this->check();
         $id      = $this->conn_id();
         $raw_map = isset( $_POST['field_map'] ) ? wp_unslash( $_POST['field_map'] ) : '';
-        $map     = is_string( $raw_map ) ? json_decode( $raw_map, true ) : (array) $raw_map;
-        if ( ! is_array( $map ) ) wp_send_json_error( [ 'message' => 'Invalid field map data.' ] );
+        $map     = $this->decode_json_array( $raw_map, 'Invalid field map data.' );
 
         $clean = [];
         foreach ( $map as $wc_field => $api_key ) {
-            $clean[ sanitize_key( $wc_field ) ] = sanitize_text_field( $api_key );
+            $clean[ sanitize_key( $wc_field ) ] = sanitize_text_field( (string) $api_key );
         }
 
         $data = [ 'field_map' => $clean ];
-        if ( ! empty( $_POST['products_key'] ) ) {
-            $data['products_key'] = sanitize_text_field( wp_unslash( $_POST['products_key'] ) );
+        $products_key = isset( $_POST['products_key'] ) ? sanitize_text_field( wp_unslash( $_POST['products_key'] ) ) : '';
+        if ( '' !== $products_key ) {
+            $data['products_key'] = $products_key;
         }
 
-        AWI_Connection_Manager::save( $id, $data );
+        FAPI_Connection_Manager::save( $id, $data );
         wp_send_json_success( [ 'message' => 'Field mapping saved.' ] );
     }
 
@@ -160,16 +222,16 @@ class AWI_Ajax {
         $this->check();
         $id = $this->conn_id();
         $raw = isset( $_POST['field_transforms'] ) ? wp_unslash( $_POST['field_transforms'] ) : '';
-        $transforms = is_string( $raw ) ? json_decode( $raw, true ) : (array) $raw;
+        $transforms = $this->decode_json_array( $raw, 'Invalid transform data.' );
         
-        AWI_Connection_Manager::save( $id, [ 'field_transforms' => $transforms ] );
+        FAPI_Connection_Manager::save( $id, [ 'field_transforms' => $transforms ] );
         wp_send_json_success( [ 'message' => 'Transforms saved.' ] );
     }
 
     public function handle_fetch_preview() {
         $this->check();
         $id     = $this->conn_id();
-        $result = AWI_Importer::fetch_preview( $id );
+        $result = FAPI_Importer::fetch_preview( $id );
         if ( isset( $result['error'] ) ) wp_send_json_error( [ 'message' => $result['error'] ] );
         wp_send_json_success( $result );
     }
@@ -178,7 +240,7 @@ class AWI_Ajax {
         $this->check();
         set_time_limit( 300 );
         $id     = $this->conn_id();
-        $result = AWI_Importer::run( $id );
+        $result = FAPI_Importer::run( $id );
         if ( $result['status'] === 'error' ) wp_send_json_error( [ 'message' => $result['message'] ] );
         wp_send_json_success( $result );
     }
@@ -188,9 +250,9 @@ class AWI_Ajax {
         set_time_limit( 300 );
         $id      = $this->conn_id();
         $ids_raw = isset( $_POST['ids'] ) ? wp_unslash( $_POST['ids'] ) : '';
-        $ids     = is_string( $ids_raw ) ? json_decode( $ids_raw, true ) : (array) $ids_raw;
+        $ids     = $this->decode_json_array( $ids_raw, 'Invalid product selection data.' );
         $ids     = array_map( 'sanitize_text_field', (array) $ids );
-        $result  = AWI_Importer::run( $id, $ids );
+        $result  = FAPI_Importer::run( $id, $ids );
         if ( $result['status'] === 'error' ) wp_send_json_error( [ 'message' => $result['message'] ] );
         wp_send_json_success( $result );
     }
@@ -198,34 +260,34 @@ class AWI_Ajax {
     public function handle_delete_imported() {
         $this->check();
         $id    = $this->conn_id();
-        $count = AWI_Importer::delete_imported( $id );
+        $count = FAPI_Importer::delete_imported( $id );
         wp_send_json_success( [ 'message' => "{$count} product(s) deleted." ] );
     }
 
     public function handle_get_progress() {
         $this->check();
         $id = $this->conn_id();
-        wp_send_json_success( AWI_Importer::get_import_progress( $id ) );
+        wp_send_json_success( FAPI_Importer::get_import_progress( $id ) );
     }
 
     public function handle_get_logs() {
         $this->check();
         $id   = $this->conn_id();
-        $logs = AWI_Connection_Manager::get_logs( $id );
+        $logs = FAPI_Connection_Manager::get_logs( $id );
         wp_send_json_success( [ 'logs' => $logs ] );
     }
 
     public function handle_clear_logs() {
         $this->check();
         $id = $this->conn_id();
-        AWI_Connection_Manager::clear_logs( $id );
+        FAPI_Connection_Manager::clear_logs( $id );
         wp_send_json_success( [ 'message' => 'Logs cleared.' ] );
     }
 
     public function handle_get_history() {
         $this->check();
         $id = $this->conn_id();
-        $history = AWI_History::get_history( $id );
+        $history = FAPI_History::get_history( $id );
         wp_send_json_success( [ 'history' => $history ] );
     }
 
@@ -235,18 +297,19 @@ class AWI_Ajax {
         $run_id = sanitize_text_field( wp_unslash( $_POST['run_id'] ?? '' ) );
         if ( ! $run_id ) wp_send_json_error( [ 'message' => 'run_id missing' ] );
         
-        $res = AWI_History::rollback( $id, $run_id );
+        $res = FAPI_History::rollback( $id, $run_id );
         if ( isset( $res['error'] ) ) wp_send_json_error( [ 'message' => $res['error'] ] );
         wp_send_json_success( [ 'message' => "Rollback complete. {$res['deleted']} products deleted." ] );
     }
 
     public function handle_get_dashboard() {
         $this->check();
-        $conns = AWI_Connection_Manager::all();
+        $conns = FAPI_Connection_Manager::all();
         $list = [];
         foreach ( $conns as $id => $data ) {
             $data['id'] = $id;
-            $data['wc_count'] = AWI_Importer::count_imported( $id );
+            $data['wc_count'] = FAPI_Importer::count_imported( $id );
+            $data['next_run'] = FAPI_Scheduler::next_run( $id );
             $list[] = $data;
         }
         wp_send_json_success( [ 'connections' => $list ] );

@@ -1,10 +1,10 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class AWI_Scheduler {
+class FAPI_Scheduler {
 
     private static $instance;
-    const HOOK_PREFIX = 'awi_auto_sync_';
+    const HOOK_PREFIX = 'fapi_auto_sync_';
 
     public static function get_instance() {
         if ( ! self::$instance ) self::$instance = new self();
@@ -13,19 +13,19 @@ class AWI_Scheduler {
 
     private function __construct() {
         // Register hooks for all existing connections
-        $index = AWI_Connection_Manager::get_index();
+        $index = FAPI_Connection_Manager::get_index();
         foreach ( array_keys( $index ) as $id ) {
             add_action( self::HOOK_PREFIX . $id, function() use ( $id ) {
                 $this->run_connection( $id );
             });
         }
-        add_action( 'update_option_' . AWI_Connection_Manager::INDEX_KEY, [ $this, 'resync_all_hooks' ] );
+        add_action( 'update_option_' . FAPI_Connection_Manager::INDEX_KEY, [ $this, 'resync_all_hooks' ] );
     }
 
     public function run_connection( string $id ): void {
-        $settings = AWI_Connection_Manager::get( $id );
+        $settings = FAPI_Connection_Manager::get( $id );
         if ( empty( $settings['sync_enabled'] ) ) return;
-        AWI_Importer::run( $id );
+        FAPI_Importer::run( $id );
     }
 
     public function resync_all_hooks(): void {
@@ -34,7 +34,7 @@ class AWI_Scheduler {
     }
 
     public static function schedule( string $id ): void {
-        $settings = AWI_Connection_Manager::get( $id );
+        $settings = FAPI_Connection_Manager::get( $id );
         if ( ! $settings || empty( $settings['sync_enabled'] ) ) return;
         $hook     = self::HOOK_PREFIX . $id;
         $interval = $settings['sync_interval'] ?? 'hourly';
@@ -57,13 +57,13 @@ class AWI_Scheduler {
     }
 
     public static function schedule_all(): void {
-        foreach ( array_keys( AWI_Connection_Manager::get_index() ) as $id ) {
+        foreach ( array_keys( FAPI_Connection_Manager::get_index() ) as $id ) {
             self::schedule( $id );
         }
     }
 
     public static function unschedule_all(): void {
-        foreach ( array_keys( AWI_Connection_Manager::get_index() ) as $id ) {
+        foreach ( array_keys( FAPI_Connection_Manager::get_index() ) as $id ) {
             self::unschedule( $id );
         }
     }

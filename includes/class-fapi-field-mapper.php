@@ -1,7 +1,7 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class AWI_Field_Mapper {
+class FAPI_Field_Mapper {
 
     const WC_FIELDS = [
         'external_id'  => [ 'label' => 'External ID (required)',   'required' => true  ],

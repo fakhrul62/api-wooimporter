@@ -1,10 +1,10 @@
 <?php
 /**
- * AWI_API_Fetcher — Built-in HTTP API fetcher (connection-aware).
+ * FAPI_API_Fetcher — Built-in HTTP API fetcher (connection-aware).
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class AWI_API_Fetcher {
+class FAPI_API_Fetcher {
 
     public static function fetch( $id_or_settings = [] ) {
         $res = self::fetch_raw( $id_or_settings );
@@ -13,7 +13,7 @@ class AWI_API_Fetcher {
     }
 
     public static function fetch_page( $id_or_settings, int $page, int $per_page ) {
-        $settings = is_array( $id_or_settings ) ? $id_or_settings : AWI_Connection_Manager::get( $id_or_settings );
+        $settings = is_array( $id_or_settings ) ? $id_or_settings : FAPI_Connection_Manager::get( $id_or_settings );
         if ( ! $settings ) return 'Connection not found.';
 
         $page_param    = $settings['pagination_param'] ?? 'page';
@@ -42,14 +42,14 @@ class AWI_API_Fetcher {
                 $total = (int) $total_header;
                 $has_more = ( $page * $per_page ) < $total;
                 if ( $style === 'auto' && ! is_array( $id_or_settings ) ) {
-                    AWI_Connection_Manager::save( $id_or_settings, ['pagination_style' => 'header'] );
+                    FAPI_Connection_Manager::save( $id_or_settings, ['pagination_style' => 'header'] );
                 }
                 $style = 'header';
             } elseif ( isset( $headers['Link'] ) || isset( $headers['link'] ) ) {
                 $link = $headers['Link'] ?? $headers['link'];
                 $has_more = strpos( $link, 'rel="next"' ) !== false;
                 if ( $style === 'auto' && ! is_array( $id_or_settings ) ) {
-                    AWI_Connection_Manager::save( $id_or_settings, ['pagination_style' => 'header'] );
+                    FAPI_Connection_Manager::save( $id_or_settings, ['pagination_style' => 'header'] );
                 }
                 $style = 'header';
             }
@@ -58,7 +58,7 @@ class AWI_API_Fetcher {
         if ( $style === 'auto' || $style === 'body' ) {
             $possible_totals = [ 'total', 'count', 'pages', 'meta.pagination.total' ];
             foreach ( $possible_totals as $path ) {
-                $val = AWI_Field_Mapper::get_value( $body, $path );
+                $val = FAPI_Field_Mapper::get_value( $body, $path );
                 if ( $val !== null && is_numeric( $val ) ) {
                     $total = (int) $val;
                     if ( $path === 'pages' || $path === 'meta.pagination.total_pages' ) {
@@ -67,7 +67,7 @@ class AWI_API_Fetcher {
                         $has_more = ( $page * $per_page ) < $total;
                     }
                     if ( $style === 'auto' && ! is_array( $id_or_settings ) ) {
-                        AWI_Connection_Manager::save( $id_or_settings, ['pagination_style' => 'body'] );
+                        FAPI_Connection_Manager::save( $id_or_settings, ['pagination_style' => 'body'] );
                     }
                     $style = 'body';
                     break;
@@ -76,10 +76,10 @@ class AWI_API_Fetcher {
         }
 
         if ( $style === 'auto' || $style === 'empty-page' ) {
-            $products = AWI_Field_Mapper::get_products_from_raw( $body, $settings['products_key'] ?? 'auto' );
+            $products = FAPI_Field_Mapper::get_products_from_raw( $body, $settings['products_key'] ?? 'auto' );
             $has_more = ! empty( $products );
             if ( $style === 'auto' && ! is_array( $id_or_settings ) ) {
-                AWI_Connection_Manager::save( $id_or_settings, ['pagination_style' => 'empty-page'] );
+                FAPI_Connection_Manager::save( $id_or_settings, ['pagination_style' => 'empty-page'] );
             }
         }
 
@@ -95,7 +95,7 @@ class AWI_API_Fetcher {
     }
 
     private static function fetch_raw( $id_or_settings ) {
-        $settings = is_array( $id_or_settings ) ? $id_or_settings : AWI_Connection_Manager::get( $id_or_settings );
+        $settings = is_array( $id_or_settings ) ? $id_or_settings : FAPI_Connection_Manager::get( $id_or_settings );
         if ( ! $settings ) return 'Connection not found.';
 
         $url    = trim( $settings['api_url'] ?? '' );
@@ -176,7 +176,7 @@ class AWI_API_Fetcher {
     public static function test_and_analyze( array $settings ): array {
         $raw = self::fetch( $settings );
         if ( is_string( $raw ) ) return [ 'error' => $raw ];
-        return AWI_Field_Mapper::analyze( $raw );
+        return FAPI_Field_Mapper::analyze( $raw );
     }
 }
 

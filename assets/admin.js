@@ -1,4 +1,4 @@
-/* global AWI, jQuery */
+/* global FAPI, jQuery */
 (function ($) {
     'use strict';
 
@@ -9,24 +9,24 @@
     let activeConn    = null;   // full settings object of active conn
     let allConns      = [];     // summary array from dashboard
     let allProducts   = [];     // preview products for active conn
-    let AWI_analysis  = null;   // last analyze result
+    let FAPI_analysis  = null;   // last analyze result
 
     /* ══════════════════════════════════════════════════════════
        HELPERS
     ══════════════════════════════════════════════════════════ */
     const ajax = (action, data = {}) =>
-        $.post(AWI.ajax_url, { action, nonce: AWI.nonce, ...data });
+        $.post(FAPI.ajax_url, { action, nonce: FAPI.nonce, ...data });
 
     const connAjax = (action, data = {}) =>
         ajax(action, { conn_id: activeConnId, ...data });
 
     function showNotice(sel, msg, type = 'info') {
-        $(sel).attr('class', 'awi-notice ' + type).html(msg).show();
+        $(sel).attr('class', 'fapi-notice ' + type).html(msg).show();
     }
     function hideNotice(sel) { $(sel).hide(); }
 
     function spin($btn, on) {
-        if (on) $btn.data('orig', $btn.html()).html('<span class="awi-spinner"></span> Working…').prop('disabled', true);
+        if (on) $btn.data('orig', $btn.html()).html('<span class="fapi-spinner"></span> Working…').prop('disabled', true);
         else     $btn.html($btn.data('orig') || '').prop('disabled', false);
     }
 
@@ -50,7 +50,7 @@
     ══════════════════════════════════════════════════════════ */
 
     function loadConnections() {
-        ajax('awi_get_dashboard').done(function(res) {
+        ajax('fapi_get_dashboard').done(function(res) {
             if (!res.success) return;
             allConns = res.data.connections || [];
             renderSidebar();
@@ -58,31 +58,31 @@
     }
 
     function renderSidebar() {
-        const $list = $('#awi-conn-list');
-        $('#awi-conn-count-pill').text(allConns.length + ' connection' + (allConns.length !== 1 ? 's' : ''));
+        const $list = $('#fapi-conn-list');
+        $('#fapi-conn-count-pill').text(allConns.length + ' connection' + (allConns.length !== 1 ? 's' : ''));
 
         if (!allConns.length) {
-            $list.html('<div class="awi-sidebar-loading">No connections yet.<br>Click ＋ to add one.</div>');
+            $list.html('<div class="fapi-sidebar-loading">No connections yet.<br>Click ＋ to add one.</div>');
             return;
         }
         let html = '';
         allConns.forEach(function(c) {
-            const sync  = `<div class="awi-sync-dot ${c.sync_enabled?'active':''}" title="Auto-sync ${c.sync_enabled?'on':'off'}"></div>`;
-            const count = `<span class="awi-conn-item-count">${c.wc_count||0} products</span>`;
+            const sync  = `<div class="fapi-sync-dot ${c.sync_enabled?'active':''}" title="Auto-sync ${c.sync_enabled?'on':'off'}"></div>`;
+            const count = `<span class="fapi-conn-item-count">${c.wc_count||0} products</span>`;
             const url   = c.api_url ? c.api_url.replace(/^https?:\/\//,'').substring(0,30)+'…' : 'Not configured';
             html += `
-            <div class="awi-conn-item${c.id===activeConnId?' active':''}" data-id="${esc(c.id)}">
-              <div class="awi-conn-item-info">
-                <div class="awi-conn-item-label">${esc(c.label)}</div>
-                <div class="awi-conn-item-url">${esc(url)}</div>
-                <div class="awi-conn-item-meta">${sync}${count}</div>
+            <div class="fapi-conn-item${c.id===activeConnId?' active':''}" data-id="${esc(c.id)}">
+              <div class="fapi-conn-item-info">
+                <div class="fapi-conn-item-label">${esc(c.label)}</div>
+                <div class="fapi-conn-item-url">${esc(url)}</div>
+                <div class="fapi-conn-item-meta">${sync}${count}</div>
               </div>
             </div>`;
         });
         $list.html(html);
     }
 
-    $(document).on('click', '.awi-conn-item', function() {
+    $(document).on('click', '.fapi-conn-item', function() {
         const id = $(this).data('id');
         selectConnection(id);
     });
@@ -93,15 +93,15 @@
         const meta = allConns.find(c => c.id === id);
 
         // Highlight sidebar
-        $('.awi-conn-item').removeClass('active');
-        $(`.awi-conn-item[data-id="${id}"]`).addClass('active');
+        $('.fapi-conn-item').removeClass('active');
+        $(`.fapi-conn-item[data-id="${id}"]`).addClass('active');
 
         // Show editor
-        $('#awi-editor-empty').hide();
-        $('#awi-conn-editor').show();
+        $('#fapi-editor-empty').hide();
+        $('#fapi-conn-editor').show();
 
         // Reset state
-        AWI_analysis = null;
+        FAPI_analysis = null;
         allProducts  = [];
         activeConn   = null;
 
@@ -120,53 +120,53 @@
 
     function populateEditor(conn) {
         // Header
-        $('#awi-conn-label').val(conn.label || '');
+        $('#fapi-conn-label').val(conn.label || '');
 
         // Connection tab
-        $('#awi-api-url').val(conn.api_url || '');
-        $('#awi-api-method').val(conn.api_method || 'GET');
-        $('#awi-api-bearer').val(conn.api_bearer || '');
-        $('#awi-api-basic-user').val(conn.api_basic_user || '');
-        $('#awi-api-basic-pass').val(conn.api_basic_pass || '');
-        $('#awi-api-key-header').val(conn.api_key_header || '');
-        $('#awi-api-key-param').val(conn.api_key_param || '');
-        $('#awi-api-key-value').val(conn.api_key_value || '');
-        $('#awi-api-extra-params').val(conn.api_extra_params || '');
-        $('#awi-api-body').val(conn.api_body || '');
-        $('#awi-webhook-secret').val(conn.webhook_secret || '');
-        $('#awi-webhook-url').val(conn.id ? window.location.origin + '/wp-json/awi/v1/webhook/' + conn.id : '');
+        $('#fapi-api-url').val(conn.api_url || '');
+        $('#fapi-api-method').val(conn.api_method || 'GET');
+        $('#fapi-api-bearer').val(conn.api_bearer || '');
+        $('#fapi-api-basic-user').val(conn.api_basic_user || '');
+        $('#fapi-api-basic-pass').val(conn.api_basic_pass || '');
+        $('#fapi-api-key-header').val(conn.api_key_header || '');
+        $('#fapi-api-key-param').val(conn.api_key_param || '');
+        $('#fapi-api-key-value').val(conn.api_key_value || '');
+        $('#fapi-api-extra-params').val(conn.api_extra_params || '');
+        $('#fapi-api-body').val(conn.api_body || '');
+        $('#fapi-webhook-secret').val(conn.webhook_secret || '');
+        $('#fapi-webhook-url').val(conn.id ? window.location.origin + '/wp-json/fapi/v1/webhook/' + conn.id : '');
 
         // Options tab
-        $('#awi-publish-status').val(conn.publish_status || 'publish');
-        $('#awi-wc-category').val(conn.wc_category || '');
-        $('#awi-tag-prefix').val(conn.tag_prefix || '');
-        $('#awi-import-images').prop('checked', !!conn.import_images);
-        $('#awi-update-existing').prop('checked', !!conn.update_existing);
-        $('#awi-conflict-strategy').val(conn.conflict_strategy || 'update');
-        $('#awi-pagination-style').val(conn.pagination_style || 'auto');
-        $('#awi-pagination-param').val(conn.pagination_param || 'page');
-        $('#awi-perpage-param').val(conn.perpage_param || 'per_page');
-        $('#awi-perpage-size').val(conn.perpage_size || 100);
+        $('#fapi-publish-status').val(conn.publish_status || 'publish');
+        $('#fapi-wc-category').val(conn.wc_category || '');
+        $('#fapi-tag-prefix').val(conn.tag_prefix || '');
+        $('#fapi-import-images').prop('checked', !!conn.import_images);
+        $('#fapi-update-existing').prop('checked', !!conn.update_existing);
+        $('#fapi-conflict-strategy').val(conn.conflict_strategy || 'update');
+        $('#fapi-pagination-style').val(conn.pagination_style || 'auto');
+        $('#fapi-pagination-param').val(conn.pagination_param || 'page');
+        $('#fapi-perpage-param').val(conn.perpage_param || 'per_page');
+        $('#fapi-perpage-size').val(conn.perpage_size || 100);
 
         // Schedule tab
-        $('#awi-sync-enabled').prop('checked', !!conn.sync_enabled);
-        $('#awi-sync-interval').val(conn.sync_interval || 'hourly');
-        $('#awi-next-run').text(conn.next_run || '—');
-        $('#awi-last-sync').text(humanTime(conn.last_sync));
-        $('#awi-last-sync-count').text(conn.last_sync_count || 0);
+        $('#fapi-sync-enabled').prop('checked', !!conn.sync_enabled);
+        $('#fapi-sync-interval').val(conn.sync_interval || 'hourly');
+        $('#fapi-next-run').text(conn.next_run || '—');
+        $('#fapi-last-sync').text(humanTime(conn.last_sync));
+        $('#fapi-last-sync-count').text(conn.last_sync_count || 0);
 
         // Hide notices from previous session
-        hideNotice('#awi-analysis-result');
-        hideNotice('#awi-options-notice');
-        hideNotice('#awi-schedule-notice');
-        hideNotice('#awi-map-notice');
-        hideNotice('#awi-import-result');
+        hideNotice('#fapi-analysis-result');
+        hideNotice('#fapi-options-notice');
+        hideNotice('#fapi-schedule-notice');
+        hideNotice('#fapi-map-notice');
+        hideNotice('#fapi-import-result');
 
         // Reset mapping and products pane
-        $('#awi-mapping-table-wrap').html('<div class="awi-map-loading"><span>Run Auto-Detect or configure your API first.</span></div>');
-        $('#awi-sample-card').hide();
-        $('#awi-products-grid').html('<div class="awi-products-empty"><div class="awi-empty-icon">📦</div><div>Click <strong>Refresh</strong> to fetch products.</div></div>');
-        $('#awi-product-count').text('—');
+        $('#fapi-mapping-table-wrap').html('<div class="fapi-map-loading"><span>Run Auto-Detect or configure your API first.</span></div>');
+        $('#fapi-sample-card').hide();
+        $('#fapi-products-grid').html('<div class="fapi-products-empty"><div class="fapi-empty-icon">📦</div><div>Click <strong>Refresh</strong> to fetch products.</div></div>');
+        $('#fapi-product-count').text('—');
     }
 
     /* ══════════════════════════════════════════════════════════
@@ -176,31 +176,31 @@
     function addConnection() {
         const label = prompt('Connection name:', 'New API Connection');
         if (label === null) return;
-        ajax('awi_create_connection', { label: label || 'New API Connection' }).done(function(res) {
+        ajax('fapi_create_connection', { label: label || 'New API Connection' }).done(function(res) {
             if (!res.success) return alert('Error: ' + res.data.message);
             loadConnections();
             setTimeout(() => selectConnection(res.data.id), 400);
         });
     }
 
-    $('#awi-btn-add-conn, #awi-btn-add-conn-center').on('click', addConnection);
+    $('#fapi-btn-add-conn, #fapi-btn-add-conn-center').on('click', addConnection);
 
-    $('#awi-btn-delete-conn').on('click', function() {
+    $('#fapi-btn-delete-conn').on('click', function() {
         if (!activeConnId) return;
-        const label = $('#awi-conn-label').val() || 'this connection';
+        const label = $('#fapi-conn-label').val() || 'this connection';
         if (!confirm(`Delete "${label}"? All settings will be removed. Products already imported into WooCommerce will NOT be deleted.`)) return;
-        ajax('awi_delete_connection', { conn_id: activeConnId }).done(function() {
+        ajax('fapi_delete_connection', { conn_id: activeConnId }).done(function() {
             activeConnId = null;
             activeConn   = null;
-            $('#awi-conn-editor').hide();
-            $('#awi-editor-empty').show();
+            $('#fapi-conn-editor').hide();
+            $('#fapi-editor-empty').show();
             loadConnections();
         });
     });
 
-    $('#awi-btn-duplicate-conn').on('click', function() {
+    $('#fapi-btn-duplicate-conn').on('click', function() {
         if (!activeConnId) return;
-        connAjax('awi_duplicate_connection').done(function(res) {
+        connAjax('fapi_duplicate_connection').done(function(res) {
             if (!res.success) return alert('Error: ' + res.data.message);
             loadConnections();
             setTimeout(() => selectConnection(res.data.id), 400);
@@ -212,13 +212,13 @@
     ══════════════════════════════════════════════════════════ */
 
     function switchTab(tab) {
-        $('.awi-tab').removeClass('active');
-        $('.awi-panel').removeClass('active');
-        $(`.awi-tab[data-tab="${tab}"]`).addClass('active');
+        $('.fapi-tab').removeClass('active');
+        $('.fapi-panel').removeClass('active');
+        $(`.fapi-tab[data-tab="${tab}"]`).addClass('active');
         $(`#tab-${tab}`).addClass('active');
     }
 
-    $(document).on('click', '.awi-tab', function() {
+    $(document).on('click', '.fapi-tab', function() {
         switchTab($(this).data('tab'));
     });
 
@@ -228,99 +228,99 @@
 
     function getConnectionFields() {
         return {
-            api_url:          $('#awi-api-url').val().trim(),
-            api_method:       $('#awi-api-method').val(),
-            api_bearer:       $('#awi-api-bearer').val().trim(),
-            api_basic_user:   $('#awi-api-basic-user').val().trim(),
-            api_basic_pass:   $('#awi-api-basic-pass').val().trim(),
-            api_key_header:   $('#awi-api-key-header').val().trim(),
-            api_key_param:    $('#awi-api-key-param').val().trim(),
-            api_key_value:    $('#awi-api-key-value').val().trim(),
-            api_extra_params: $('#awi-api-extra-params').val().trim(),
-            api_body:         $('#awi-api-body').val().trim(),
-            webhook_secret:   $('#awi-webhook-secret').val().trim(),
+            api_url:          $('#fapi-api-url').val().trim(),
+            api_method:       $('#fapi-api-method').val(),
+            api_bearer:       $('#fapi-api-bearer').val().trim(),
+            api_basic_user:   $('#fapi-api-basic-user').val().trim(),
+            api_basic_pass:   $('#fapi-api-basic-pass').val().trim(),
+            api_key_header:   $('#fapi-api-key-header').val().trim(),
+            api_key_param:    $('#fapi-api-key-param').val().trim(),
+            api_key_value:    $('#fapi-api-key-value').val().trim(),
+            api_extra_params: $('#fapi-api-extra-params').val().trim(),
+            api_body:         $('#fapi-api-body').val().trim(),
+            webhook_secret:   $('#fapi-webhook-secret').val().trim(),
         };
     }
 
-    $('#awi-btn-analyze').on('click', function() {
+    $('#fapi-btn-analyze').on('click', function() {
         if (!activeConnId) return;
         const $btn = $(this);
         const fields = getConnectionFields();
         if (!fields.api_url) {
-            showNotice('#awi-analysis-result', '⚠ Please enter the API Endpoint URL.', 'warning');
+            showNotice('#fapi-analysis-result', '⚠ Please enter the API Endpoint URL.', 'warning');
             return;
         }
         spin($btn, true);
-        connAjax('awi_analyze_api', fields)
+        connAjax('fapi_analyze_api', fields)
             .done(function(res) {
                 if (!res.success) {
-                    showNotice('#awi-analysis-result', '❌ ' + res.data.message, 'error');
+                    showNotice('#fapi-analysis-result', '❌ ' + res.data.message, 'error');
                     return;
                 }
                 const d = res.data;
-                AWI_analysis = d;
+                FAPI_analysis = d;
                 let html = `✅ Connected! Found <strong>${d.total_found}</strong> products in <code>${d.products_key === '__root__' ? 'root array' : '"' + d.products_key + '"'}</code>. `;
                 html += `Auto-detected <strong>${Object.keys(d.map).length}</strong> field mappings. `;
-                html += `<a href="#" class="awi-goto-map">→ Review Mapping</a>`;
-                showNotice('#awi-analysis-result', html, 'success');
+                html += `<a href="#" class="fapi-goto-map">→ Review Mapping</a>`;
+                showNotice('#fapi-analysis-result', html, 'success');
             })
-            .fail(() => showNotice('#awi-analysis-result', '❌ AJAX error — check your browser console.', 'error'))
+            .fail(() => showNotice('#fapi-analysis-result', '❌ AJAX error — check your browser console.', 'error'))
             .always(() => spin($btn, false));
     });
 
-    $(document).on('click', '.awi-goto-map', function(e) {
+    $(document).on('click', '.fapi-goto-map', function(e) {
         e.preventDefault();
         switchTab('mapping');
     });
 
-    $('#awi-btn-save-connection').on('click', function() {
+    $('#fapi-btn-save-connection').on('click', function() {
         if (!activeConnId) return;
         const $btn = $(this);
         spin($btn, true);
-        connAjax('awi_save_connection', {
-            label:     $('#awi-conn-label').val().trim(),
+        connAjax('fapi_save_connection', {
+            label:     $('#fapi-conn-label').val().trim(),
             ...getConnectionFields(),
         }).done(function(res) {
-            showNotice('#awi-analysis-result', res.success ? '✅ Connection saved.' : '❌ ' + res.data.message, res.success ? 'success' : 'error');
+            showNotice('#fapi-analysis-result', res.success ? '✅ Connection saved.' : '❌ ' + res.data.message, res.success ? 'success' : 'error');
             if (res.success) loadConnections();
         }).always(() => spin($btn, false));
     });
 
-    $('#awi-btn-save-options').on('click', function() {
+    $('#fapi-btn-save-options').on('click', function() {
         if (!activeConnId) return;
         const $btn = $(this);
         spin($btn, true);
-        connAjax('awi_save_connection', {
-            publish_status:  $('#awi-publish-status').val(),
-            wc_category:     $('#awi-wc-category').val().trim(),
-            tag_prefix:      $('#awi-tag-prefix').val().trim(),
-            import_images:   $('#awi-import-images').is(':checked') ? '1' : '0',
-            update_existing: $('#awi-update-existing').is(':checked') ? '1' : '0',
-            conflict_strategy: $('#awi-conflict-strategy').val(),
-            pagination_style: $('#awi-pagination-style').val(),
-            pagination_param: $('#awi-pagination-param').val().trim(),
-            perpage_param:    $('#awi-perpage-param').val().trim(),
-            perpage_size:     $('#awi-perpage-size').val().trim(),
+        connAjax('fapi_save_connection', {
+            publish_status:  $('#fapi-publish-status').val(),
+            wc_category:     $('#fapi-wc-category').val().trim(),
+            tag_prefix:      $('#fapi-tag-prefix').val().trim(),
+            import_images:   $('#fapi-import-images').is(':checked') ? '1' : '0',
+            update_existing: $('#fapi-update-existing').is(':checked') ? '1' : '0',
+            conflict_strategy: $('#fapi-conflict-strategy').val(),
+            pagination_style: $('#fapi-pagination-style').val(),
+            pagination_param: $('#fapi-pagination-param').val().trim(),
+            perpage_param:    $('#fapi-perpage-param').val().trim(),
+            perpage_size:     $('#fapi-perpage-size').val().trim(),
         }).done(function(res) {
-            showNotice('#awi-options-notice', res.success ? '✅ Options saved.' : '❌ ' + res.data.message, res.success ? 'success' : 'error');
+            showNotice('#fapi-options-notice', res.success ? '✅ Options saved.' : '❌ ' + res.data.message, res.success ? 'success' : 'error');
         }).always(() => spin($btn, false));
     });
 
-    $('#awi-btn-delete-imported').on('click', function() {
+    $('#fapi-btn-delete-imported').on('click', function() {
         if (!activeConnId) return;
-        const label = $('#awi-conn-label').val() || 'this connection';
+        const label = $('#fapi-conn-label').val() || 'this connection';
         if (!confirm(`Permanently delete ALL products imported from "${label}"?\n\nThis cannot be undone.`)) return;
         const $btn = $(this);
         spin($btn, true);
-        connAjax('awi_delete_imported').done(function(res) {
-            showNotice('#awi-options-notice', res.success ? '✅ ' + res.data.message : '❌ ' + res.data.message, res.success ? 'success' : 'error');
+        connAjax('fapi_delete_imported').done(function(res) {
+            showNotice('#fapi-options-notice', res.success ? '✅ ' + res.data.message : '❌ ' + res.data.message, res.success ? 'success' : 'error');
             if (res.success) loadConnections();
         }).always(() => spin($btn, false));
     });
 
     // Live label sync
-    $('#awi-conn-label').on('input', function() {
-        const $item = $(`.awi-conn-item[data-id="${activeConnId}"] .awi-conn-item-label`);
+    $('#fapi-conn-label').on('input', function() {
+        const $item = $(`.fapi-conn-item[data-id="${activeConnId}"] .fapi-conn-item-label`);
         $item.text($(this).val());
     });
 
@@ -329,52 +329,52 @@
     ══════════════════════════════════════════════════════════ */
 
     function autoMap(forceRefetch) {
-        const $wrap = $('#awi-mapping-table-wrap');
-        $wrap.html('<div class="awi-map-loading">⏳ Analyzing API…</div>');
+        const $wrap = $('#fapi-mapping-table-wrap');
+        $wrap.html('<div class="fapi-map-loading">⏳ Analyzing API…</div>');
 
-        if (AWI_analysis && !forceRefetch) {
-            renderMappingTable(AWI_analysis);
+        if (FAPI_analysis && !forceRefetch) {
+            renderMappingTable(FAPI_analysis);
             return;
         }
 
         const fields = getConnectionFields();
         if (!fields.api_url && activeConn) fields.api_url = activeConn.api_url || '';
         if (!fields.api_url) {
-            $wrap.html('<div class="awi-map-loading">⚠ Configure your API connection first.</div>');
+            $wrap.html('<div class="fapi-map-loading">⚠ Configure your API connection first.</div>');
             return;
         }
 
-        connAjax('awi_analyze_api', fields)
+        connAjax('fapi_analyze_api', fields)
             .done(function(res) {
                 if (!res.success) {
-                    $wrap.html('<div class="awi-map-loading">❌ ' + res.data.message + '</div>');
+                    $wrap.html('<div class="fapi-map-loading">❌ ' + res.data.message + '</div>');
                     return;
                 }
-                AWI_analysis = res.data;
+                FAPI_analysis = res.data;
                 renderMappingTable(res.data);
             })
-            .fail(() => $wrap.html('<div class="awi-map-loading">❌ AJAX error.</div>'));
+            .fail(() => $wrap.html('<div class="fapi-map-loading">❌ AJAX error.</div>'));
     }
 
     function renderMappingTable(data) {
         const { all_keys, map, sample } = data;
         const savedMap     = (activeConn && activeConn.field_map) ? activeConn.field_map : {};
         const effectiveMap = Object.assign({}, map, savedMap);
-        const wcFields     = AWI.wc_fields;
+        const wcFields     = FAPI.wc_fields;
 
-        let html = '<table class="awi-map-table">';
+        let html = '<table class="fapi-map-table">';
         html += '<thead><tr><th>WooCommerce Field</th><th>API Field</th><th>Status</th></tr></thead><tbody>';
 
         for (const [wcKey, meta] of Object.entries(wcFields)) {
             const selected   = effectiveMap[wcKey] || '';
-            const required   = meta.required ? '<span class="awi-required-badge">REQUIRED</span>' : '';
+            const required   = meta.required ? '<span class="fapi-required-badge">REQUIRED</span>' : '';
             const confidence = selected ? (map[wcKey] === selected ? '✓ Auto' : '✏ Manual') : '—';
-            const confClass  = selected && map[wcKey] === selected ? 'awi-map-confidence' : '';
+            const confClass  = selected && map[wcKey] === selected ? 'fapi-map-confidence' : '';
 
             html += `<tr>
-              <td class="awi-wc-field">${meta.label}${required}</td>
+              <td class="fapi-wc-field">${meta.label}${required}</td>
               <td>
-                <select class="awi-map-select" data-wc="${wcKey}">
+                <select class="fapi-map-select" data-wc="${wcKey}">
                   <option value="">— skip —</option>`;
             for (const k of all_keys) {
                 html += `<option value="${esc(k)}"${k === selected ? ' selected' : ''}>${esc(k)}</option>`;
@@ -382,48 +382,48 @@
             const hasTransforms = effectiveMap[wcKey] && activeConn && activeConn.field_transforms && activeConn.field_transforms[wcKey] && activeConn.field_transforms[wcKey].length > 0;
             const btnColor = hasTransforms ? '#6366f1' : 'inherit';
             html += `</select>
-            <button class="awi-btn-icon-primary awi-btn-transform" data-wc="${wcKey}" title="Add transforms" style="color:${btnColor};border:1px solid #ccc;background:#f9f9f9;border-radius:4px;padding:2px 6px;margin-left:4px;cursor:pointer;">⚙️</button>
+            <button class="fapi-btn-icon-primary fapi-btn-transform" data-wc="${wcKey}" title="Add transforms" style="color:${btnColor};border:1px solid #ccc;background:#f9f9f9;border-radius:4px;padding:2px 6px;margin-left:4px;cursor:pointer;">⚙️</button>
             </td>
               <td class="${confClass}" style="font-size:11px;">${confidence}</td>
             </tr>`;
         }
         html += '</tbody></table>';
 
-        $('#awi-mapping-table-wrap').html(html);
-        $('#awi-sample-json').text(JSON.stringify(sample, null, 2));
-        $('#awi-sample-card').show();
-        window.AWI_productsKey = data.products_key;
+        $('#fapi-mapping-table-wrap').html(html);
+        $('#fapi-sample-json').text(JSON.stringify(sample, null, 2));
+        $('#fapi-sample-card').show();
+        window.FAPI_productsKey = data.products_key;
     }
 
-    $('#awi-btn-automap').on('click', function() {
-        AWI_analysis = null;
+    $('#fapi-btn-automap').on('click', function() {
+        FAPI_analysis = null;
         autoMap(true);
     });
 
-    $('#awi-btn-save-map').on('click', function() {
+    $('#fapi-btn-save-map').on('click', function() {
         if (!activeConnId) return;
         const $btn = $(this);
         const map  = {};
-        $('.awi-map-select').each(function() {
+        $('.fapi-map-select').each(function() {
             const wc  = $(this).data('wc');
             const val = $(this).val();
             if (val) map[wc] = val;
         });
         if (!map.external_id && !map.title) {
-            showNotice('#awi-map-notice', '⚠ Map at least "External ID" or "Product Title".', 'warning');
+            showNotice('#fapi-map-notice', '⚠ Map at least "External ID" or "Product Title".', 'warning');
             return;
         }
         spin($btn, true);
-        connAjax('awi_save_field_map', {
+        connAjax('fapi_save_field_map', {
             field_map:    JSON.stringify(map),
-            products_key: window.AWI_productsKey || 'auto',
+            products_key: window.FAPI_productsKey || 'auto',
         }).done(function(res) {
-            showNotice('#awi-map-notice', res.success ? '✅ Field mapping saved!' : '❌ ' + res.data.message, res.success ? 'success' : 'error');
+            showNotice('#fapi-map-notice', res.success ? '✅ Field mapping saved!' : '❌ ' + res.data.message, res.success ? 'success' : 'error');
             if (res.success && activeConn) activeConn.field_map = map;
         }).always(() => spin($btn, false));
     });
 
-    $(document).on('click', '.awi-btn-transform', function(e) {
+    $(document).on('click', '.fapi-btn-transform', function(e) {
         e.preventDefault();
         const wcKey = $(this).data('wc');
         const transforms = activeConn && activeConn.field_transforms ? activeConn.field_transforms[wcKey] || [] : [];
@@ -433,9 +433,9 @@
                 const parsed = JSON.parse(json || '[]');
                 if (!activeConn.field_transforms) activeConn.field_transforms = {};
                 activeConn.field_transforms[wcKey] = parsed;
-                connAjax('awi_save_transforms', { field_transforms: JSON.stringify(activeConn.field_transforms) })
+                connAjax('fapi_save_transforms', { field_transforms: JSON.stringify(activeConn.field_transforms) })
                     .done(res => {
-                        showNotice('#awi-map-notice', res.success ? '✅ Transforms saved!' : '❌ Error', res.success ? 'success' : 'error');
+                        showNotice('#fapi-map-notice', res.success ? '✅ Transforms saved!' : '❌ Error', res.success ? 'success' : 'error');
                         if (res.success && parsed.length > 0) $(this).css('color', '#6366f1');
                         else $(this).css('color', 'inherit');
                     });
@@ -450,110 +450,110 @@
     ══════════════════════════════════════════════════════════ */
 
     function loadPreview() {
-        const $grid = $('#awi-products-grid');
-        $grid.html('<div class="awi-products-empty"><div class="awi-empty-icon">⏳</div><div>Fetching products…</div></div>');
-        hideNotice('#awi-import-result');
+        const $grid = $('#fapi-products-grid');
+        $grid.html('<div class="fapi-products-empty"><div class="fapi-empty-icon">⏳</div><div>Fetching products…</div></div>');
+        hideNotice('#fapi-import-result');
 
-        connAjax('awi_fetch_preview').done(function(res) {
+        connAjax('fapi_fetch_preview').done(function(res) {
             if (!res.success) {
-                $grid.html(`<div class="awi-products-empty"><div class="awi-empty-icon">❌</div><div>${res.data.message}</div></div>`);
+                $grid.html(`<div class="fapi-products-empty"><div class="fapi-empty-icon">❌</div><div>${res.data.message}</div></div>`);
                 return;
             }
             allProducts = res.data.products;
-            $('#awi-product-count').text(allProducts.length + ' products');
+            $('#fapi-product-count').text(allProducts.length + ' products');
             renderProducts(allProducts);
         }).fail(() => {
-            $grid.html('<div class="awi-products-empty"><div class="awi-empty-icon">❌</div><div>AJAX error loading preview.</div></div>');
+            $grid.html('<div class="fapi-products-empty"><div class="fapi-empty-icon">❌</div><div>AJAX error loading preview.</div></div>');
         });
     }
 
     function renderProducts(products) {
         if (!products.length) {
-            $('#awi-products-grid').html('<div class="awi-products-empty"><div class="awi-empty-icon">🔍</div><div>No products match.</div></div>');
+            $('#fapi-products-grid').html('<div class="fapi-products-empty"><div class="fapi-empty-icon">🔍</div><div>No products match.</div></div>');
             return;
         }
-        let html = '<div class="awi-products-grid-inner">';
+        let html = '<div class="fapi-products-grid-inner">';
         products.forEach(function(p, i) {
-            const imported = p.imported ? '<div class="awi-imported-tag">✓ Imported</div>' : '';
+            const imported = p.imported ? '<div class="fapi-imported-tag">✓ Imported</div>' : '';
             const imgHtml  = p.image
-                ? `<img src="${esc(p.image)}" loading="lazy" alt="" onerror="this.parentNode.innerHTML='<div class=\\'awi-product-no-img\\'>📦</div>'">`
-                : '<div class="awi-product-no-img">📦</div>';
-            const price = p.price !== '' && p.price !== null ? `<span class="awi-product-price">$${parseFloat(p.price).toFixed(2)}</span>` : '';
-            const cat   = p.cat ? `<span class="awi-product-cat">${esc(p.cat)}</span>` : '';
-            const stock = p.stock !== '' && p.stock !== null ? `<span class="awi-product-stock">Stock: ${p.stock}</span>` : '';
+                ? `<img src="${esc(p.image)}" loading="lazy" alt="" onerror="this.parentNode.innerHTML='<div class=\\'fapi-product-no-img\\'>📦</div>'">`
+                : '<div class="fapi-product-no-img">📦</div>';
+            const price = p.price !== '' && p.price !== null ? `<span class="fapi-product-price">$${parseFloat(p.price).toFixed(2)}</span>` : '';
+            const cat   = p.cat ? `<span class="fapi-product-cat">${esc(p.cat)}</span>` : '';
+            const stock = p.stock !== '' && p.stock !== null ? `<span class="fapi-product-stock">Stock: ${p.stock}</span>` : '';
             html += `
-            <div class="awi-product-card${p.imported?' already-imported':''}" data-ext-id="${esc(p.ext_id)}" data-idx="${i}">
+            <div class="fapi-product-card${p.imported?' already-imported':''}" data-ext-id="${esc(p.ext_id)}" data-idx="${i}">
               ${imported}
-              <input type="checkbox" class="awi-product-checkbox" value="${esc(p.ext_id)}" aria-label="${esc(p.title)}">
-              <div class="awi-product-img-wrap">${imgHtml}</div>
-              <div class="awi-product-body">
-                <div class="awi-product-title">${esc(p.title||'Untitled')}</div>
-                <div class="awi-product-meta">${price}${cat}${stock}</div>
+              <input type="checkbox" class="fapi-product-checkbox" value="${esc(p.ext_id)}" aria-label="${esc(p.title)}">
+              <div class="fapi-product-img-wrap">${imgHtml}</div>
+              <div class="fapi-product-body">
+                <div class="fapi-product-title">${esc(p.title||'Untitled')}</div>
+                <div class="fapi-product-meta">${price}${cat}${stock}</div>
               </div>
             </div>`;
         });
         html += '</div>';
-        $('#awi-products-grid').html(html);
+        $('#fapi-products-grid').html(html);
         updateSelectedCount();
     }
 
-    $(document).on('click', '.awi-product-card', function(e) {
+    $(document).on('click', '.fapi-product-card', function(e) {
         if ($(e.target).is('input')) return;
-        const $cb = $(this).find('.awi-product-checkbox');
+        const $cb = $(this).find('.fapi-product-checkbox');
         $cb.prop('checked', !$cb.prop('checked'));
         $(this).toggleClass('selected', $cb.prop('checked'));
         updateSelectedCount();
     });
-    $(document).on('change', '.awi-product-checkbox', function() {
-        $(this).closest('.awi-product-card').toggleClass('selected', $(this).prop('checked'));
+    $(document).on('change', '.fapi-product-checkbox', function() {
+        $(this).closest('.fapi-product-card').toggleClass('selected', $(this).prop('checked'));
         updateSelectedCount();
     });
 
     function updateSelectedCount() {
-        const n = $('.awi-product-checkbox:checked').length;
-        $('#awi-selected-count').text(n);
-        $('#awi-btn-import-selected').prop('disabled', n === 0);
+        const n = $('.fapi-product-checkbox:checked').length;
+        $('#fapi-selected-count').text(n);
+        $('#fapi-btn-import-selected').prop('disabled', n === 0);
     }
 
-    $('#awi-product-search').on('input', function() {
+    $('#fapi-product-search').on('input', function() {
         const q = $(this).val().toLowerCase();
         if (!q) { renderProducts(allProducts); return; }
         renderProducts(allProducts.filter(p => (p.title||'').toLowerCase().includes(q)||(p.cat||'').toLowerCase().includes(q)));
     });
-    $('#awi-btn-select-all').on('click', function() {
-        $('.awi-product-checkbox').prop('checked', true);
-        $('.awi-product-card').addClass('selected');
+    $('#fapi-btn-select-all').on('click', function() {
+        $('.fapi-product-checkbox').prop('checked', true);
+        $('.fapi-product-card').addClass('selected');
         updateSelectedCount();
     });
-    $('#awi-btn-select-none').on('click', function() {
-        $('.awi-product-checkbox').prop('checked', false);
-        $('.awi-product-card').removeClass('selected');
+    $('#fapi-btn-select-none').on('click', function() {
+        $('.fapi-product-checkbox').prop('checked', false);
+        $('.fapi-product-card').removeClass('selected');
         updateSelectedCount();
     });
-    $('#awi-btn-refresh-preview').on('click', loadPreview);
+    $('#fapi-btn-refresh-preview').on('click', loadPreview);
 
-    $('#awi-btn-import-selected').on('click', function() {
+    $('#fapi-btn-import-selected').on('click', function() {
         const ids = [];
-        $('.awi-product-checkbox:checked').each(function() { ids.push($(this).val()); });
+        $('.fapi-product-checkbox:checked').each(function() { ids.push($(this).val()); });
         if (!ids.length) return;
-        runImport('awi_run_import_selected', { ids: JSON.stringify(ids) });
+        runImport('fapi_run_import_selected', { ids: JSON.stringify(ids) });
     });
 
-    $('#awi-btn-import-all').on('click', function() {
+    $('#fapi-btn-import-all').on('click', function() {
         if (!allProducts.length) return;
         if (!confirm('Import all ' + allProducts.length + ' products?')) return;
-        runImport('awi_run_import');
+        runImport('fapi_run_import');
     });
 
     let pollInterval = null;
     function pollProgress() {
         if (!activeConnId) return;
-        connAjax('awi_get_progress').done(function(res) {
+        connAjax('fapi_get_progress').done(function(res) {
             if (!res.success) return;
             const d = res.data;
-            const $progress = $('#awi-import-progress');
-            const $fill = $('.awi-progress-fill');
-            const $label = $('.awi-progress-label');
+            const $progress = $('#fapi-import-progress');
+            const $fill = $('.fapi-progress-fill');
+            const $label = $('.fapi-progress-label');
             $progress.show();
             $fill.css('width', d.percent + '%');
             $label.text(`Importing... ${d.percent}% (${d.processed} / ${d.total})`);
@@ -567,57 +567,57 @@
     }
 
     function runImport(action, extra = {}) {
-        const $progress = $('#awi-import-progress');
-        const $fill     = $('.awi-progress-fill');
-        const $label    = $('.awi-progress-label');
+        const $progress = $('#fapi-import-progress');
+        const $fill     = $('.fapi-progress-fill');
+        const $label    = $('.fapi-progress-label');
         $progress.show();
         $fill.css('width','10%');
         $label.text('Starting background import…');
-        hideNotice('#awi-import-result');
+        hideNotice('#fapi-import-result');
 
         connAjax(action, extra)
             .done(function(res) {
                 if (!res.success) {
                     $label.text('Failed to start.');
-                    showNotice('#awi-import-result', '❌ ' + res.data.message, 'error');
+                    showNotice('#fapi-import-result', '❌ ' + res.data.message, 'error');
                     return;
                 }
-                showNotice('#awi-import-result', `✅ <strong>${res.data.message}</strong>`, 'success');
+                showNotice('#fapi-import-result', `✅ <strong>${res.data.message}</strong>`, 'success');
                 if (pollInterval) clearInterval(pollInterval);
                 pollInterval = setInterval(pollProgress, 2000);
             })
-            .fail(() => showNotice('#awi-import-result', '❌ AJAX error.', 'error'));
+            .fail(() => showNotice('#fapi-import-result', '❌ AJAX error.', 'error'));
     }
 
     /* ══════════════════════════════════════════════════════════
        SCHEDULE TAB
     ══════════════════════════════════════════════════════════ */
 
-    $('#awi-btn-save-schedule').on('click', function() {
+    $('#fapi-btn-save-schedule').on('click', function() {
         if (!activeConnId) return;
         const $btn = $(this);
         spin($btn, true);
-        connAjax('awi_save_connection', {
-            sync_enabled:  $('#awi-sync-enabled').is(':checked') ? '1' : '0',
-            sync_interval: $('#awi-sync-interval').val(),
+        connAjax('fapi_save_connection', {
+            sync_enabled:  $('#fapi-sync-enabled').is(':checked') ? '1' : '0',
+            sync_interval: $('#fapi-sync-interval').val(),
         }).done(function(res) {
-            showNotice('#awi-schedule-notice', res.success ? '✅ Schedule saved.' : '❌ ' + res.data.message, res.success ? 'success' : 'error');
+            showNotice('#fapi-schedule-notice', res.success ? '✅ Schedule saved.' : '❌ ' + res.data.message, res.success ? 'success' : 'error');
             if (res.success) loadConnections();
         }).always(() => spin($btn, false));
     });
 
-    $('#awi-btn-run-now').on('click', function() {
+    $('#fapi-btn-run-now').on('click', function() {
         if (!activeConnId) return;
         const $btn = $(this);
         spin($btn, true);
-        connAjax('awi_run_import')
+        connAjax('fapi_run_import')
             .done(function(res) {
-                showNotice('#awi-schedule-notice',
+                showNotice('#fapi-schedule-notice',
                     res.success ? '✅ ' + res.data.message : '❌ ' + res.data.message,
                     res.success ? 'success' : 'error');
                 if (res.success) { loadConnections(); }
             })
-            .fail(() => showNotice('#awi-schedule-notice', '❌ AJAX error.', 'error'))
+            .fail(() => showNotice('#fapi-schedule-notice', '❌ AJAX error.', 'error'))
             .always(() => spin($btn, false));
     });
 
@@ -627,7 +627,7 @@
 
     function loadLogs() {
         if (!activeConnId) return;
-        connAjax('awi_get_logs').done(function(res) {
+        connAjax('fapi_get_logs').done(function(res) {
             if (!res.success) return;
             renderLogs(res.data.logs || []);
         });
@@ -635,32 +635,32 @@
 
     function renderLogs(logs) {
         if (!logs.length) {
-            $('#awi-log-list').html('<div class="awi-log-empty">No log entries yet.</div>');
+            $('#fapi-log-list').html('<div class="fapi-log-empty">No log entries yet.</div>');
             return;
         }
         let html = '';
         logs.forEach(function(log) {
-            html += `<div class="awi-log-row ${esc(log.type)}">
+            html += `<div class="fapi-log-row ${esc(log.type)}">
               <span class="log-time">${esc(log.time)}</span>
               <span class="log-badge ${esc(log.type)}">${esc((log.type||'').toUpperCase())}</span>
               <span class="log-msg">${esc(log.message)}</span>
             </div>`;
         });
-        $('#awi-log-list').html(html);
+        $('#fapi-log-list').html(html);
     }
 
-    $('#awi-btn-clear-logs').on('click', function() {
+    $('#fapi-btn-clear-logs').on('click', function() {
         if (!activeConnId) return;
         if (!confirm('Clear logs for this connection?')) return;
         const $btn = $(this);
         spin($btn, true);
-        connAjax('awi_clear_logs').done(function(res) {
+        connAjax('fapi_clear_logs').done(function(res) {
             if (res.success) renderLogs([]);
         }).always(() => spin($btn, false));
     });
 
     // Reload logs when switching to logs tab
-    $(document).on('click', '.awi-tab[data-tab="logs"]', function() {
+    $(document).on('click', '.fapi-tab[data-tab="logs"]', function() {
         loadLogs();
     });
 
@@ -670,8 +670,8 @@
 
     function loadHistory() {
         if (!activeConnId) return;
-        $('#awi-history-list').html('<div class="awi-log-empty">Loading history...</div>');
-        connAjax('awi_get_history').done(function(res) {
+        $('#fapi-history-list').html('<div class="fapi-log-empty">Loading history...</div>');
+        connAjax('fapi_get_history').done(function(res) {
             if (!res.success) return;
             renderHistory(res.data.history || []);
         });
@@ -679,30 +679,30 @@
 
     function renderHistory(history) {
         if (!history.length) {
-            $('#awi-history-list').html('<div class="awi-log-empty">No import history yet.</div>');
+            $('#fapi-history-list').html('<div class="fapi-log-empty">No import history yet.</div>');
             return;
         }
         let html = '';
         history.forEach(function(run) {
-            html += `<div class="awi-log-row" style="display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid #eee;">
+            html += `<div class="fapi-log-row" style="display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid #eee;">
               <div>
                   <span class="log-time" style="font-weight:600;color:#333;">${humanTime(run.date)}</span>
                   <span style="margin-left:15px;color:#666;">Imported: <strong>${run.imported}</strong>, Updated: <strong>${run.updated}</strong>, Failed: <strong>${run.failed}</strong></span>
               </div>
-              <button class="awi-btn danger-ghost awi-btn-rollback" data-run="${esc(run.id)}" style="padding:4px 8px;font-size:12px;">Rollback</button>
+              <button class="fapi-btn danger-ghost fapi-btn-rollback" data-run="${esc(run.id)}" style="padding:4px 8px;font-size:12px;">Rollback</button>
             </div>`;
         });
-        $('#awi-history-list').html(html);
+        $('#fapi-history-list').html(html);
     }
 
-    $('#awi-btn-refresh-history').on('click', loadHistory);
+    $('#fapi-btn-refresh-history').on('click', loadHistory);
 
-    $(document).on('click', '.awi-btn-rollback', function() {
+    $(document).on('click', '.fapi-btn-rollback', function() {
         const runId = $(this).data('run');
         if (!confirm('Rollback this import? This will PERMANENTLY delete these products from WooCommerce!')) return;
         const $btn = $(this);
         spin($btn, true);
-        connAjax('awi_rollback_import', { run_id: runId }).done(function(res) {
+        connAjax('fapi_rollback_import', { run_id: runId }).done(function(res) {
             if (res.success) {
                 alert(res.data.message);
                 loadHistory();
@@ -714,7 +714,7 @@
     });
 
     // Reload history when switching to history tab
-    $(document).on('click', '.awi-tab[data-tab="history"]', function() {
+    $(document).on('click', '.fapi-tab[data-tab="history"]', function() {
         loadHistory();
     });
 

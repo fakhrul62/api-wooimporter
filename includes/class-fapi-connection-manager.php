@@ -1,24 +1,24 @@
 <?php
 /**
- * AWI_Connection_Manager
+ * FAPI_Connection_Manager
  *
  * Manages multiple isolated API connections.
  * Each connection is stored under its own option key so data never merges.
  *
  * Option layout:
- *   awi_connections          => [ { id, label, ...meta } ]   (index)
- *   awi_conn_{id}            => { full settings }            (per-connection data)
- *   awi_conn_{id}_logs       => [ { time, message, type } ]  (per-connection logs)
+ *   FAPI_connections          => [ { id, label, ...meta } ]   (index)
+ *   FAPI_conn_{id}            => { full settings }            (per-connection data)
+ *   FAPI_conn_{id}_logs       => [ { time, message, type } ]  (per-connection logs)
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class AWI_Connection_Manager {
+class FAPI_Connection_Manager {
 
     private static $instance;
 
-    const INDEX_KEY  = 'awi_connections';
-    const CONN_KEY   = 'awi_conn_';          // prefix + id
-    const LOG_KEY    = 'awi_conn_logs_';     // prefix + id
+    const INDEX_KEY  = 'fapi_connections';
+    const CONN_KEY   = 'fapi_conn_';          // prefix + id
+    const LOG_KEY    = 'fapi_conn_logs_';     // prefix + id
 
     public static function get_instance() {
         if ( ! self::$instance ) self::$instance = new self();
@@ -112,6 +112,20 @@ class AWI_Connection_Manager {
         return wp_parse_args( $data, self::defaults() );
     }
 
+    /** Retrieve all full connection settings keyed by connection ID. */
+    public static function all(): array {
+        $connections = [];
+
+        foreach ( array_keys( self::get_index() ) as $id ) {
+            $data = self::get( $id );
+            if ( $data ) {
+                $connections[ $id ] = $data;
+            }
+        }
+
+        return $connections;
+    }
+
     /** Save / update a connection's settings. */
     public static function save( string $id, array $data ): bool {
         $existing = self::get( $id );
@@ -141,7 +155,7 @@ class AWI_Connection_Manager {
         unset( $index[ $id ] );
         self::save_index( $index );
 
-        AWI_Scheduler::unschedule( $id );
+        FAPI_Scheduler::unschedule( $id );
         return true;
     }
 
@@ -209,7 +223,7 @@ class AWI_Connection_Manager {
                 'last_sync_count'=> $data['last_sync_count'],
                 'has_map'        => ! empty( $data['field_map'] ),
                 'color_tag'      => $data['color_tag'] ?? '',
-                'next_run'       => AWI_Scheduler::next_run( $id ),
+                'next_run'       => FAPI_Scheduler::next_run( $id ),
             ];
         }
         return $summary;
@@ -221,7 +235,7 @@ class AWI_Connection_Manager {
 
     /** If old single-connection settings exist, import them as connection #1. */
     public static function maybe_migrate_legacy(): void {
-        $legacy = get_option( 'awi_settings', null );
+        $legacy = get_option( 'fapi_settings', null );
         if ( ! $legacy || ! is_array( $legacy ) ) return;
         if ( ! empty( $legacy['_migrated'] ) ) return;
         if ( empty( $legacy['api_url'] ) ) return;
@@ -240,6 +254,6 @@ class AWI_Connection_Manager {
 
         // Mark legacy as migrated so we don't repeat
         $legacy['_migrated'] = true;
-        update_option( 'awi_settings', $legacy );
+        update_option( 'fapi_settings', $legacy );
     }
 }

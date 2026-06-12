@@ -1,15 +1,15 @@
 <?php
 /**
- * AWI_History
+ * FAPI_History
  *
  * Tracks import runs and allows rolling them back.
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class AWI_History {
+class FAPI_History {
 
     public static function log_run( string $conn_id, array $data ) {
-        $key = 'awi_history_' . $conn_id;
+        $key = 'fapi_history_' . $conn_id;
         $history = get_option( $key, [] );
         if ( ! is_array( $history ) ) $history = [];
 
@@ -30,13 +30,13 @@ class AWI_History {
     }
 
     public static function get_history( string $conn_id ): array {
-        $key = 'awi_history_' . $conn_id;
+        $key = 'fapi_history_' . $conn_id;
         $history = get_option( $key, [] );
         return is_array( $history ) ? $history : [];
     }
 
     public static function rollback( string $conn_id, string $run_id ): array {
-        $key = 'awi_history_' . $conn_id;
+        $key = 'fapi_history_' . $conn_id;
         $history = get_option( $key, [] );
         if ( ! is_array( $history ) ) return [ 'error' => 'No history found' ];
 

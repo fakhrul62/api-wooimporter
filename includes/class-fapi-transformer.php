@@ -1,12 +1,12 @@
 <?php
 /**
- * AWI_Transformer
+ * FAPI_Transformer
  *
  * Handles field data transformations.
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class AWI_Transformer {
+class FAPI_Transformer {
 
     public static function transform( $value, array $rules ) {
         if ( empty( $rules ) ) {

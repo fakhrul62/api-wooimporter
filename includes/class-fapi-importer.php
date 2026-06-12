@@ -1,17 +1,17 @@
 <?php
 /**
- * AWI_Importer — Connection-aware importer.
+ * FAPI_Importer — Connection-aware importer.
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class AWI_Importer {
+class FAPI_Importer {
 
     public static function run( string $conn_id, array $only_ids = [] ): array {
         if ( ! class_exists( 'WooCommerce' ) ) {
             return [ 'status' => 'error', 'message' => 'WooCommerce not active.' ];
         }
 
-        $settings = AWI_Connection_Manager::get( $conn_id );
+        $settings = FAPI_Connection_Manager::get( $conn_id );
         if ( ! $settings ) {
             return [ 'status' => 'error', 'message' => 'Connection not found.' ];
         }
@@ -22,7 +22,7 @@ class AWI_Importer {
             return [ 'status' => 'error', 'message' => 'Field mapping not saved yet.' ];
         }
 
-        AWI_Connection_Manager::save( $conn_id, [
+        FAPI_Connection_Manager::save( $conn_id, [
             'import_status'    => 'running',
             'import_processed' => 0,
             'import_total'     => 0,
@@ -38,48 +38,48 @@ class AWI_Importer {
 
     public static function schedule_batch( $conn_id, $page, $only_ids = [] ) {
         if ( function_exists( 'as_schedule_single_action' ) ) {
-            as_schedule_single_action( time(), 'awi_process_import_batch', [ $conn_id, $page, $only_ids ], 'awi' );
+            as_schedule_single_action( time(), 'fapi_process_import_batch', [ $conn_id, $page, $only_ids ], 'fapi' );
         } else {
-            wp_schedule_single_event( time(), 'awi_process_import_batch_cron', [ $conn_id, $page, $only_ids ] );
+            wp_schedule_single_event( time(), 'fapi_process_import_batch_cron', [ $conn_id, $page, $only_ids ] );
         }
     }
 
     public static function process_batch( $conn_id, $page, $only_ids = [] ) {
-        $settings = AWI_Connection_Manager::get( $conn_id );
+        $settings = FAPI_Connection_Manager::get( $conn_id );
         if ( ! $settings ) return;
 
         $per_page = $settings['perpage_size'] ?? 100;
 
-        $res = AWI_API_Fetcher::fetch_page( $conn_id, $page, $per_page );
+        $res = FAPI_API_Fetcher::fetch_page( $conn_id, $page, $per_page );
         
         if ( is_string( $res ) ) {
-            AWI_Connection_Manager::add_log( $conn_id, 'API fetch error: ' . $res, 'error' );
-            AWI_Connection_Manager::save( $conn_id, [ 'import_status' => 'error' ] );
+            FAPI_Connection_Manager::add_log( $conn_id, 'API fetch error: ' . $res, 'error' );
+            FAPI_Connection_Manager::save( $conn_id, [ 'import_status' => 'error' ] );
             return;
         }
 
-        $products = AWI_Field_Mapper::get_products_from_raw( $res['data'], $settings['products_key'] ?? 'auto' );
+        $products = FAPI_Field_Mapper::get_products_from_raw( $res['data'], $settings['products_key'] ?? 'auto' );
         
         if ( empty( $products ) ) {
             if ( $page === 1 ) {
-                AWI_Connection_Manager::add_log( $conn_id, 'No products found.', 'warning' );
+                FAPI_Connection_Manager::add_log( $conn_id, 'No products found.', 'warning' );
             }
-            AWI_Connection_Manager::save( $conn_id, [ 'import_status' => 'done' ] );
+            FAPI_Connection_Manager::save( $conn_id, [ 'import_status' => 'done' ] );
             return;
         }
 
         if ( ! empty( $only_ids ) ) {
             $id_field = $settings['field_map']['external_id'] ?? 'id';
             $products = array_filter( $products, function( $p ) use ( $id_field, $only_ids ) {
-                $id = AWI_Field_Mapper::get_value( $p, $id_field );
+                $id = FAPI_Field_Mapper::get_value( $p, $id_field );
                 return in_array( (string) $id, array_map( 'strval', $only_ids ), true );
             });
         }
 
         if ( $page === 1 && $res['total'] !== null ) {
-            AWI_Connection_Manager::save( $conn_id, [ 'import_total' => $res['total'] ] );
+            FAPI_Connection_Manager::save( $conn_id, [ 'import_total' => $res['total'] ] );
         } elseif ( $page === 1 ) {
-             AWI_Connection_Manager::save( $conn_id, [ 'import_total' => count($products) ] );
+             FAPI_Connection_Manager::save( $conn_id, [ 'import_total' => count($products) ] );
         }
 
         $imported = $updated = $failed = 0;
@@ -101,9 +101,9 @@ class AWI_Importer {
         }
 
         $current_processed = $settings['import_processed'] + count( $products );
-        AWI_Connection_Manager::save( $conn_id, [ 'import_processed' => $current_processed ] );
+        FAPI_Connection_Manager::save( $conn_id, [ 'import_processed' => $current_processed ] );
 
-        AWI_History::log_run( $conn_id, [
+        FAPI_History::log_run( $conn_id, [
             'imported' => $imported,
             'updated'  => $updated,
             'failed'   => $failed,
@@ -113,17 +113,17 @@ class AWI_Importer {
         if ( $res['has_more'] && empty( $only_ids ) ) {
             self::schedule_batch( $conn_id, $page + 1, $only_ids );
         } else {
-            AWI_Connection_Manager::save( $conn_id, [
+            FAPI_Connection_Manager::save( $conn_id, [
                 'import_status' => 'done',
                 'last_sync' => current_time( 'mysql' ),
                 'last_sync_count' => $current_processed,
             ] );
-            AWI_Connection_Manager::add_log( $conn_id, "Import completed.", 'success' );
+            FAPI_Connection_Manager::add_log( $conn_id, "Import completed.", 'success' );
         }
     }
 
     public static function get_import_progress( string $conn_id ): array {
-        $settings = AWI_Connection_Manager::get( $conn_id );
+        $settings = FAPI_Connection_Manager::get( $conn_id );
         if ( ! $settings ) return [ 'status' => 'error' ];
 
         $status    = $settings['import_status'] ?? 'idle';
@@ -142,9 +142,9 @@ class AWI_Importer {
 
         $get = function( $field ) use ( $item, $map, $transforms ) {
             if ( ! isset( $map[$field] ) ) return null;
-            $val = AWI_Field_Mapper::get_value( $item, $map[$field] );
+            $val = FAPI_Field_Mapper::get_value( $item, $map[$field] );
             if ( isset( $transforms[$field] ) ) {
-                $val = AWI_Transformer::transform( $val, $transforms[$field] );
+                $val = FAPI_Transformer::transform( $val, $transforms[$field] );
             }
             return $val;
         };
@@ -162,7 +162,7 @@ class AWI_Importer {
         if ( ! empty( $ext_id ) ) {
             global $wpdb;
             $existing_id = $wpdb->get_var( $wpdb->prepare(
-                "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_awi_source' AND meta_value = %s LIMIT 1",
+                "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_fapi_source' AND meta_value = %s LIMIT 1",
                 $source_key
             ) );
             
@@ -185,9 +185,9 @@ class AWI_Importer {
             ]);
             if ( ! $post_id || is_wp_error( $post_id ) ) return 'Error creating post';
             
-            update_post_meta( $post_id, '_awi_source',      $source_key );
-            update_post_meta( $post_id, '_awi_conn_id',     $conn_id );
-            update_post_meta( $post_id, '_awi_external_id', (string) $ext_id );
+            update_post_meta( $post_id, '_fapi_source', $source_key );
+            update_post_meta( $post_id, '_fapi_conn_id', $conn_id );
+            update_post_meta( $post_id, '_fapi_external_id', (string) $ext_id );
         }
 
         $strategy = $settings['conflict_strategy'] ?? 'update';
@@ -267,9 +267,13 @@ class AWI_Importer {
             $cats = is_array( $category ) ? $category : [ $category ];
             $term_ids = [];
             foreach ( $cats as $cat_name ) {
+                $cat_name = sanitize_text_field( (string) $cat_name );
+                if ( '' === $cat_name ) {
+                    continue;
+                }
                 $term = get_term_by( 'name', $cat_name, 'product_cat' );
                 if ( ! $term ) {
-                    $new_term = wp_insert_term( sanitize_text_field($cat_name), 'product_cat' );
+                    $new_term = wp_insert_term( $cat_name, 'product_cat' );
                     if ( ! is_wp_error( $new_term ) ) $term_ids[] = $new_term['term_id'];
                 } else {
                     $term_ids[] = $term->term_id;
@@ -282,20 +286,24 @@ class AWI_Importer {
         $tag_prefix = trim( $settings['tag_prefix'] ?? '' );
         if ( ! empty( $tags ) && ! ( $is_update && $strategy === 'merge' && in_array('tags', $conflict_fields) && has_term('', 'product_tag', $post_id) ) ) {
             $tag_list = is_array( $tags ) ? $tags : [ $tags ];
-            if ( $tag_prefix !== '' ) {
-                $tag_list = array_map( fn($t) => $tag_prefix . sanitize_text_field( (string) $t ), $tag_list );
-            }
+            $tag_list = array_filter(
+                array_map(
+                    fn( $t ) => sanitize_text_field( $tag_prefix . (string) $t ),
+                    $tag_list
+                )
+            );
             wp_set_object_terms( $post_id, $tag_list, 'product_tag', false );
         }
 
         $brand = $get( 'brand' );
         if ( ! empty( $brand ) ) {
-            $update_field( '_awi_brand', sanitize_text_field( (string) $brand ) );
+            $update_field( '_fapi_brand', sanitize_text_field( (string) $brand ) );
         }
 
         if ( ! empty( $settings['import_images'] ) ) {
             $image_url = $get( 'image' );
             if ( is_array( $image_url ) ) $image_url = reset( $image_url );
+            $image_url = esc_url_raw( (string) $image_url );
             if ( ! empty( $image_url ) && ! ( $is_update && $strategy === 'merge' && in_array('image', $conflict_fields) && has_post_thumbnail($post_id) ) ) {
                 require_once ABSPATH . 'wp-admin/includes/media.php';
                 require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -311,28 +319,28 @@ class AWI_Importer {
     }
 
     public static function fetch_preview( string $conn_id ): array {
-        $settings = AWI_Connection_Manager::get( $conn_id );
+        $settings = FAPI_Connection_Manager::get( $conn_id );
         if ( ! $settings ) return [ 'error' => 'Connection not found.' ];
 
-        $res = AWI_API_Fetcher::fetch_preview_page( $conn_id );
+        $res = FAPI_API_Fetcher::fetch_preview_page( $conn_id );
         if ( is_string( $res ) ) return [ 'error' => $res ];
 
         $raw = $res['data'];
-        $analysis = AWI_Field_Mapper::analyze( $raw );
+        $analysis = FAPI_Field_Mapper::analyze( $raw );
         if ( isset( $analysis['error'] ) ) return [ 'error' => $analysis['error'] ];
 
         $map      = ! empty( $settings['field_map'] ) ? $settings['field_map'] : $analysis['map'];
-        $products = AWI_Field_Mapper::get_products_from_raw( $raw, $analysis['products_key'] );
+        $products = FAPI_Field_Mapper::get_products_from_raw( $raw, $analysis['products_key'] );
 
         $rows = [];
         foreach ( $products as $item ) {
-            $display   = AWI_Field_Mapper::product_display_label( $item, $map );
+            $display   = FAPI_Field_Mapper::product_display_label( $item, $map );
             $source_key = $conn_id . ':' . $display['ext_id'];
             $imported  = false;
             if ( ! empty( $display['ext_id'] ) ) {
                 global $wpdb;
                 $imported = (bool) $wpdb->get_var( $wpdb->prepare(
-                    "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_awi_source' AND meta_value = %s LIMIT 1",
+                    "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_fapi_source' AND meta_value = %s LIMIT 1",
                     $source_key
                 ) );
             }
@@ -351,7 +359,7 @@ class AWI_Importer {
     public static function count_imported( string $conn_id ): int {
         global $wpdb;
         return (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(post_id) FROM {$wpdb->postmeta} WHERE meta_key = '_awi_conn_id' AND meta_value = %s",
+            "SELECT COUNT(post_id) FROM {$wpdb->postmeta} WHERE meta_key = '_fapi_conn_id' AND meta_value = %s",
             $conn_id
         ) );
     }
@@ -362,7 +370,7 @@ class AWI_Importer {
         
         while ( true ) {
             $ids = $wpdb->get_col( $wpdb->prepare(
-                "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_awi_conn_id' AND meta_value = %s LIMIT 50",
+                "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_fapi_conn_id' AND meta_value = %s LIMIT 50",
                 $conn_id
             ) );
             
@@ -379,5 +387,5 @@ class AWI_Importer {
     }
 }
 
-add_action( 'awi_process_import_batch', [ 'AWI_Importer', 'process_batch' ], 10, 3 );
-add_action( 'awi_process_import_batch_cron', [ 'AWI_Importer', 'process_batch' ], 10, 3 );
+add_action( 'fapi_process_import_batch', [ 'FAPI_Importer', 'process_batch' ], 10, 3 );
+add_action( 'fapi_process_import_batch_cron', [ 'FAPI_Importer', 'process_batch' ], 10, 3 );
