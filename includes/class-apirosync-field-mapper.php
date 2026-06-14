@@ -1,7 +1,7 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class FAPI_Field_Mapper {
+class APIROSYNC_Field_Mapper {
 
     const WC_FIELDS = [
         'external_id'  => [ 'label' => 'External ID (required)',   'required' => true  ],
@@ -40,7 +40,7 @@ class FAPI_Field_Mapper {
     public static function analyze( $raw_data ): array {
         if ( is_string( $raw_data ) ) $raw_data = json_decode( $raw_data, true );
         if ( ! is_array( $raw_data ) ) {
-            return [ 'error' => 'API returned invalid data — not a JSON object or array.' ];
+            return [ 'error' => 'API returned invalid data  not a JSON object or array.' ];
         }
         [ $products_key, $products ] = self::find_products_array( $raw_data );
         if ( empty( $products ) ) {

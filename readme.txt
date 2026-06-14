@@ -26,7 +26,7 @@ This plugin is not affiliated with or endorsed by WooCommerce.
 
 == Installation ==
 
-1. Upload the plugin files to the `/wp-content/plugins/fakhrulalam16-api-product-sync-woocommerce` directory, or install the plugin through the WordPress plugins screen.
+1. Upload the plugin files to the `/wp-content/plugins/apirosync-product-sync-for-woocommerce` directory, or install the plugin through the WordPress plugins screen.
 2. Activate the plugin through the Plugins screen in WordPress.
 3. Go to ApiroSync to create your first connection.
 

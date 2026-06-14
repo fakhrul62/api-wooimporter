@@ -1,33 +1,33 @@
 <?php
 /**
- * FAPI_Connection_Manager
+ * APIROSYNC_Connection_Manager
  *
  * Manages multiple isolated API connections.
  * Each connection is stored under its own option key so data never merges.
  *
  * Option layout:
- *   FAPI_connections          => [ { id, label, ...meta } ]   (index)
- *   FAPI_conn_{id}            => { full settings }            (per-connection data)
- *   FAPI_conn_{id}_logs       => [ { time, message, type } ]  (per-connection logs)
+ *   apirosync_connections          => [ { id, label, ...meta } ]   (index)
+ *   apirosync_conn_{id}            => { full settings }            (per-connection data)
+ *   apirosync_conn_{id}_logs       => [ { time, message, type } ]  (per-connection logs)
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class FAPI_Connection_Manager {
+class APIROSYNC_Connection_Manager {
 
     private static $instance;
 
-    const INDEX_KEY  = 'fapi_connections';
-    const CONN_KEY   = 'fapi_conn_';          // prefix + id
-    const LOG_KEY    = 'fapi_conn_logs_';     // prefix + id
+    const INDEX_KEY  = 'apirosync_connections';
+    const CONN_KEY   = 'apirosync_conn_';          // prefix + id
+    const LOG_KEY    = 'apirosync_conn_logs_';     // prefix + id
 
     public static function get_instance() {
         if ( ! self::$instance ) self::$instance = new self();
         return self::$instance;
     }
 
-    // ──────────────────────────────────────────
+    // 
     // Connection defaults
-    // ──────────────────────────────────────────
+    // 
 
     public static function defaults(): array {
         return [
@@ -68,9 +68,9 @@ class FAPI_Connection_Manager {
         ];
     }
 
-    // ──────────────────────────────────────────
+    // 
     // Index helpers
-    // ──────────────────────────────────────────
+    // 
 
     /** Return all connections as [ id => label ] */
     public static function get_index(): array {
@@ -81,9 +81,9 @@ class FAPI_Connection_Manager {
         update_option( self::INDEX_KEY, $index );
     }
 
-    // ──────────────────────────────────────────
+    // 
     // CRUD
-    // ──────────────────────────────────────────
+    // 
 
     /** Generate a unique connection ID. */
     public static function generate_id(): string {
@@ -155,7 +155,7 @@ class FAPI_Connection_Manager {
         unset( $index[ $id ] );
         self::save_index( $index );
 
-        FAPI_Scheduler::unschedule( $id );
+        APIROSYNC_Scheduler::unschedule( $id );
         return true;
     }
 
@@ -178,9 +178,9 @@ class FAPI_Connection_Manager {
         return $new_id;
     }
 
-    // ──────────────────────────────────────────
+    // 
     // Logging (per-connection)
-    // ──────────────────────────────────────────
+    // 
 
     public static function add_log( string $id, string $message, string $type = 'info' ): void {
         $key  = self::LOG_KEY . $id;
@@ -202,11 +202,11 @@ class FAPI_Connection_Manager {
         update_option( self::LOG_KEY . $id, [] );
     }
 
-    // ──────────────────────────────────────────
+    // 
     // Stats helper (for dashboard)
-    // ──────────────────────────────────────────
+    // 
 
-    /** Return summary stats for all connections (fast — reads index only). */
+    /** Return summary stats for all connections (fast  reads index only). */
     public static function all_summary(): array {
         $index   = self::get_index();
         $summary = [];
@@ -223,19 +223,19 @@ class FAPI_Connection_Manager {
                 'last_sync_count'=> $data['last_sync_count'],
                 'has_map'        => ! empty( $data['field_map'] ),
                 'color_tag'      => $data['color_tag'] ?? '',
-                'next_run'       => FAPI_Scheduler::next_run( $id ),
+                'next_run'       => APIROSYNC_Scheduler::next_run( $id ),
             ];
         }
         return $summary;
     }
 
-    // ──────────────────────────────────────────
+    // 
     // Legacy migration
-    // ──────────────────────────────────────────
+    // 
 
     /** If old single-connection settings exist, import them as connection #1. */
     public static function maybe_migrate_legacy(): void {
-        $legacy = get_option( 'fapi_settings', null );
+        $legacy = get_option( 'apirosync_settings', null );
         if ( ! $legacy || ! is_array( $legacy ) ) return;
         if ( ! empty( $legacy['_migrated'] ) ) return;
         if ( empty( $legacy['api_url'] ) ) return;
@@ -254,6 +254,6 @@ class FAPI_Connection_Manager {
 
         // Mark legacy as migrated so we don't repeat
         $legacy['_migrated'] = true;
-        update_option( 'fapi_settings', $legacy );
+        update_option( 'apirosync_settings', $legacy );
     }
 }

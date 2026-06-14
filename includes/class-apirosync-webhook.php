@@ -1,15 +1,15 @@
 <?php
 /**
- * FAPI_Webhook
+ * APIROSYNC_Webhook
  *
  * Handles incoming webhooks for specific connections.
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class FAPI_Webhook {
+class APIROSYNC_Webhook {
 
     public static function register_routes() {
-        register_rest_route( 'fapi/v1', '/webhook/(?P<conn_id>[a-zA-Z0-9_-]+)', [
+        register_rest_route( 'apirosync/v1', '/webhook/(?P<conn_id>[a-zA-Z0-9_-]+)', [
             'methods'             => 'POST',
             'callback'            => [ self::class, 'handle_webhook' ],
             'permission_callback' => [ self::class, 'verify_webhook_permission' ],
@@ -18,7 +18,7 @@ class FAPI_Webhook {
 
     public static function verify_webhook_permission( WP_REST_Request $request ) {
         $conn_id  = sanitize_text_field( (string) $request->get_param( 'conn_id' ) );
-        $settings = FAPI_Connection_Manager::get( $conn_id );
+        $settings = APIROSYNC_Connection_Manager::get( $conn_id );
 
         if ( ! $settings ) {
             return new WP_Error( 'not_found', 'Connection not found', [ 'status' => 404 ] );
@@ -31,7 +31,7 @@ class FAPI_Webhook {
 
         $provided = $request->get_param( 'secret' );
         if ( ! $provided ) {
-            $provided = $request->get_header( 'x-fapi-secret' );
+            $provided = $request->get_header( 'x-apirosync-secret' );
         }
         if ( ! $provided ) {
             $auth = $request->get_header( 'authorization' );
@@ -50,7 +50,7 @@ class FAPI_Webhook {
 
     public static function handle_webhook( WP_REST_Request $request ) {
         $conn_id = sanitize_text_field( (string) $request->get_param( 'conn_id' ) );
-        $settings = FAPI_Connection_Manager::get( $conn_id );
+        $settings = APIROSYNC_Connection_Manager::get( $conn_id );
 
         if ( ! $settings ) {
             return new WP_Error( 'not_found', 'Connection not found', [ 'status' => 404 ] );
@@ -75,7 +75,7 @@ class FAPI_Webhook {
                 continue;
             }
             $item = self::sanitize_payload_item( $item );
-            $result = FAPI_Importer::import_single( $item, $conn_id, $settings );
+            $result = APIROSYNC_Importer::import_single( $item, $conn_id, $settings );
             if ( is_numeric( $result ) ) {
                 $imported++;
             } elseif ( is_string( $result ) && 0 === strpos( $result, 'updated:' ) ) {
@@ -86,7 +86,7 @@ class FAPI_Webhook {
         }
 
         $msg = "Webhook handled: $imported created, $updated updated, $failed failed.";
-        FAPI_Connection_Manager::add_log( $conn_id, $msg, $failed > 0 ? 'warning' : 'success' );
+        APIROSYNC_Connection_Manager::add_log( $conn_id, $msg, $failed > 0 ? 'warning' : 'success' );
 
         return rest_ensure_response( [
             'success'  => true,

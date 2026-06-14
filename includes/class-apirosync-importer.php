@@ -1,17 +1,17 @@
 <?php
 /**
- * FAPI_Importer — Connection-aware importer.
+ * APIROSYNC_Importer  Connection-aware importer.
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class FAPI_Importer {
+class APIROSYNC_Importer {
 
     public static function run( string $conn_id, array $only_ids = [] ): array {
         if ( ! class_exists( 'WooCommerce' ) ) {
             return [ 'status' => 'error', 'message' => 'WooCommerce not active.' ];
         }
 
-        $settings = FAPI_Connection_Manager::get( $conn_id );
+        $settings = APIROSYNC_Connection_Manager::get( $conn_id );
         if ( ! $settings ) {
             return [ 'status' => 'error', 'message' => 'Connection not found.' ];
         }
@@ -22,7 +22,7 @@ class FAPI_Importer {
             return [ 'status' => 'error', 'message' => 'Field mapping not saved yet.' ];
         }
 
-        FAPI_Connection_Manager::save( $conn_id, [
+        APIROSYNC_Connection_Manager::save( $conn_id, [
             'import_status'    => 'running',
             'import_processed' => 0,
             'import_total'     => 0,
@@ -38,48 +38,48 @@ class FAPI_Importer {
 
     public static function schedule_batch( $conn_id, $page, $only_ids = [] ) {
         if ( function_exists( 'as_schedule_single_action' ) ) {
-            as_schedule_single_action( time(), 'fapi_process_import_batch', [ $conn_id, $page, $only_ids ], 'fapi' );
+            as_schedule_single_action( time(), 'apirosync_process_import_batch', [ $conn_id, $page, $only_ids ], 'apirosync' );
         } else {
-            wp_schedule_single_event( time(), 'fapi_process_import_batch_cron', [ $conn_id, $page, $only_ids ] );
+            wp_schedule_single_event( time(), 'apirosync_process_import_batch_cron', [ $conn_id, $page, $only_ids ] );
         }
     }
 
     public static function process_batch( $conn_id, $page, $only_ids = [] ) {
-        $settings = FAPI_Connection_Manager::get( $conn_id );
+        $settings = APIROSYNC_Connection_Manager::get( $conn_id );
         if ( ! $settings ) return;
 
         $per_page = $settings['perpage_size'] ?? 100;
 
-        $res = FAPI_API_Fetcher::fetch_page( $conn_id, $page, $per_page );
+        $res = APIROSYNC_API_Fetcher::fetch_page( $conn_id, $page, $per_page );
         
         if ( is_string( $res ) ) {
-            FAPI_Connection_Manager::add_log( $conn_id, 'API fetch error: ' . $res, 'error' );
-            FAPI_Connection_Manager::save( $conn_id, [ 'import_status' => 'error' ] );
+            APIROSYNC_Connection_Manager::add_log( $conn_id, 'API fetch error: ' . $res, 'error' );
+            APIROSYNC_Connection_Manager::save( $conn_id, [ 'import_status' => 'error' ] );
             return;
         }
 
-        $products = FAPI_Field_Mapper::get_products_from_raw( $res['data'], $settings['products_key'] ?? 'auto' );
+        $products = APIROSYNC_Field_Mapper::get_products_from_raw( $res['data'], $settings['products_key'] ?? 'auto' );
         
         if ( empty( $products ) ) {
             if ( $page === 1 ) {
-                FAPI_Connection_Manager::add_log( $conn_id, 'No products found.', 'warning' );
+                APIROSYNC_Connection_Manager::add_log( $conn_id, 'No products found.', 'warning' );
             }
-            FAPI_Connection_Manager::save( $conn_id, [ 'import_status' => 'done' ] );
+            APIROSYNC_Connection_Manager::save( $conn_id, [ 'import_status' => 'done' ] );
             return;
         }
 
         if ( ! empty( $only_ids ) ) {
             $id_field = $settings['field_map']['external_id'] ?? 'id';
             $products = array_filter( $products, function( $p ) use ( $id_field, $only_ids ) {
-                $id = FAPI_Field_Mapper::get_value( $p, $id_field );
+                $id = APIROSYNC_Field_Mapper::get_value( $p, $id_field );
                 return in_array( (string) $id, array_map( 'strval', $only_ids ), true );
             });
         }
 
         if ( $page === 1 && $res['total'] !== null ) {
-            FAPI_Connection_Manager::save( $conn_id, [ 'import_total' => $res['total'] ] );
+            APIROSYNC_Connection_Manager::save( $conn_id, [ 'import_total' => $res['total'] ] );
         } elseif ( $page === 1 ) {
-             FAPI_Connection_Manager::save( $conn_id, [ 'import_total' => count($products) ] );
+             APIROSYNC_Connection_Manager::save( $conn_id, [ 'import_total' => count($products) ] );
         }
 
         $imported = $updated = $failed = 0;
@@ -101,9 +101,9 @@ class FAPI_Importer {
         }
 
         $current_processed = $settings['import_processed'] + count( $products );
-        FAPI_Connection_Manager::save( $conn_id, [ 'import_processed' => $current_processed ] );
+        APIROSYNC_Connection_Manager::save( $conn_id, [ 'import_processed' => $current_processed ] );
 
-        FAPI_History::log_run( $conn_id, [
+        APIROSYNC_History::log_run( $conn_id, [
             'imported' => $imported,
             'updated'  => $updated,
             'failed'   => $failed,
@@ -113,17 +113,17 @@ class FAPI_Importer {
         if ( $res['has_more'] && empty( $only_ids ) ) {
             self::schedule_batch( $conn_id, $page + 1, $only_ids );
         } else {
-            FAPI_Connection_Manager::save( $conn_id, [
+            APIROSYNC_Connection_Manager::save( $conn_id, [
                 'import_status' => 'done',
                 'last_sync' => current_time( 'mysql' ),
                 'last_sync_count' => $current_processed,
             ] );
-            FAPI_Connection_Manager::add_log( $conn_id, "Import completed.", 'success' );
+            APIROSYNC_Connection_Manager::add_log( $conn_id, "Import completed.", 'success' );
         }
     }
 
     public static function get_import_progress( string $conn_id ): array {
-        $settings = FAPI_Connection_Manager::get( $conn_id );
+        $settings = APIROSYNC_Connection_Manager::get( $conn_id );
         if ( ! $settings ) return [ 'status' => 'error' ];
 
         $status    = $settings['import_status'] ?? 'idle';
@@ -142,9 +142,9 @@ class FAPI_Importer {
 
         $get = function( $field ) use ( $item, $map, $transforms ) {
             if ( ! isset( $map[$field] ) ) return null;
-            $val = FAPI_Field_Mapper::get_value( $item, $map[$field] );
+            $val = APIROSYNC_Field_Mapper::get_value( $item, $map[$field] );
             if ( isset( $transforms[$field] ) ) {
-                $val = FAPI_Transformer::transform( $val, $transforms[$field] );
+                $val = APIROSYNC_Transformer::transform( $val, $transforms[$field] );
             }
             return $val;
         };
@@ -162,7 +162,7 @@ class FAPI_Importer {
         if ( ! empty( $ext_id ) ) {
             global $wpdb;
             $existing_id = $wpdb->get_var( $wpdb->prepare(
-                "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_fapi_source' AND meta_value = %s LIMIT 1",
+                "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_apirosync_source' AND meta_value = %s LIMIT 1",
                 $source_key
             ) );
             
@@ -185,9 +185,9 @@ class FAPI_Importer {
             ]);
             if ( ! $post_id || is_wp_error( $post_id ) ) return 'Error creating post';
             
-            update_post_meta( $post_id, '_fapi_source', $source_key );
-            update_post_meta( $post_id, '_fapi_conn_id', $conn_id );
-            update_post_meta( $post_id, '_fapi_external_id', (string) $ext_id );
+            update_post_meta( $post_id, '_apirosync_source', $source_key );
+            update_post_meta( $post_id, '_apirosync_conn_id', $conn_id );
+            update_post_meta( $post_id, '_apirosync_external_id', (string) $ext_id );
         }
 
         $strategy = $settings['conflict_strategy'] ?? 'update';
@@ -297,7 +297,7 @@ class FAPI_Importer {
 
         $brand = $get( 'brand' );
         if ( ! empty( $brand ) ) {
-            $update_field( '_fapi_brand', sanitize_text_field( (string) $brand ) );
+            $update_field( '_apirosync_brand', sanitize_text_field( (string) $brand ) );
         }
 
         if ( ! empty( $settings['import_images'] ) ) {
@@ -319,28 +319,28 @@ class FAPI_Importer {
     }
 
     public static function fetch_preview( string $conn_id ): array {
-        $settings = FAPI_Connection_Manager::get( $conn_id );
+        $settings = APIROSYNC_Connection_Manager::get( $conn_id );
         if ( ! $settings ) return [ 'error' => 'Connection not found.' ];
 
-        $res = FAPI_API_Fetcher::fetch_preview_page( $conn_id );
+        $res = APIROSYNC_API_Fetcher::fetch_preview_page( $conn_id );
         if ( is_string( $res ) ) return [ 'error' => $res ];
 
         $raw = $res['data'];
-        $analysis = FAPI_Field_Mapper::analyze( $raw );
+        $analysis = APIROSYNC_Field_Mapper::analyze( $raw );
         if ( isset( $analysis['error'] ) ) return [ 'error' => $analysis['error'] ];
 
         $map      = ! empty( $settings['field_map'] ) ? $settings['field_map'] : $analysis['map'];
-        $products = FAPI_Field_Mapper::get_products_from_raw( $raw, $analysis['products_key'] );
+        $products = APIROSYNC_Field_Mapper::get_products_from_raw( $raw, $analysis['products_key'] );
 
         $rows = [];
         foreach ( $products as $item ) {
-            $display   = FAPI_Field_Mapper::product_display_label( $item, $map );
+            $display   = APIROSYNC_Field_Mapper::product_display_label( $item, $map );
             $source_key = $conn_id . ':' . $display['ext_id'];
             $imported  = false;
             if ( ! empty( $display['ext_id'] ) ) {
                 global $wpdb;
                 $imported = (bool) $wpdb->get_var( $wpdb->prepare(
-                    "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_fapi_source' AND meta_value = %s LIMIT 1",
+                    "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_apirosync_source' AND meta_value = %s LIMIT 1",
                     $source_key
                 ) );
             }
@@ -359,7 +359,7 @@ class FAPI_Importer {
     public static function count_imported( string $conn_id ): int {
         global $wpdb;
         return (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(post_id) FROM {$wpdb->postmeta} WHERE meta_key = '_fapi_conn_id' AND meta_value = %s",
+            "SELECT COUNT(post_id) FROM {$wpdb->postmeta} WHERE meta_key = '_apirosync_conn_id' AND meta_value = %s",
             $conn_id
         ) );
     }
@@ -370,7 +370,7 @@ class FAPI_Importer {
         
         while ( true ) {
             $ids = $wpdb->get_col( $wpdb->prepare(
-                "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_fapi_conn_id' AND meta_value = %s LIMIT 50",
+                "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_apirosync_conn_id' AND meta_value = %s LIMIT 50",
                 $conn_id
             ) );
             
@@ -387,5 +387,5 @@ class FAPI_Importer {
     }
 }
 
-add_action( 'fapi_process_import_batch', [ 'FAPI_Importer', 'process_batch' ], 10, 3 );
-add_action( 'fapi_process_import_batch_cron', [ 'FAPI_Importer', 'process_batch' ], 10, 3 );
+add_action( 'apirosync_process_import_batch', [ 'APIROSYNC_Importer', 'process_batch' ], 10, 3 );
+add_action( 'apirosync_process_import_batch_cron', [ 'APIROSYNC_Importer', 'process_batch' ], 10, 3 );

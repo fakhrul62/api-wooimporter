@@ -9,25 +9,25 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
     exit;
 }
 
-$connections = get_option( 'fapi_connections', [] );
+$connections = get_option( 'apirosync_connections', [] );
 if ( is_array( $connections ) ) {
     foreach ( array_keys( $connections ) as $conn_id ) {
-        wp_clear_scheduled_hook( 'fapi_auto_sync_' . sanitize_text_field( (string) $conn_id ) );
+        wp_clear_scheduled_hook( 'apirosync_auto_sync_' . sanitize_text_field( (string) $conn_id ) );
     }
 }
 
-wp_clear_scheduled_hook( 'fapi_process_import_batch_cron' );
-wp_clear_scheduled_hook( 'fapi_sync_event' );
+wp_clear_scheduled_hook( 'apirosync_process_import_batch_cron' );
+wp_clear_scheduled_hook( 'apirosync_sync_event' );
 
-delete_option( 'fapi_connections' );
-delete_option( 'fapi_settings' );
+delete_option( 'apirosync_connections' );
+delete_option( 'apirosync_settings' );
 
 global $wpdb;
 
 $patterns = [
-    $wpdb->esc_like( 'fapi_conn_' ) . '%',
-    $wpdb->esc_like( 'fapi_conn_logs_' ) . '%',
-    $wpdb->esc_like( 'fapi_history_' ) . '%',
+    $wpdb->esc_like( 'apirosync_conn_' ) . '%',
+    $wpdb->esc_like( 'apirosync_conn_logs_' ) . '%',
+    $wpdb->esc_like( 'apirosync_history_' ) . '%',
 ];
 
 foreach ( $patterns as $pattern ) {

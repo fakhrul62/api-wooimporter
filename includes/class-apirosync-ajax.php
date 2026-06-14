@@ -1,7 +1,7 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class FAPI_Ajax {
+class APIROSYNC_Ajax {
 
     private static $instance;
 
@@ -12,27 +12,27 @@ class FAPI_Ajax {
 
     private function __construct() {
         $actions = [
-            'fapi_get_connections',
-            'fapi_create_connection',
-            'fapi_delete_connection',
-            'fapi_duplicate_connection',
-            'fapi_save_connection',
-            'fapi_analyze_api',
-            'fapi_save_field_map',
-            'fapi_save_transforms',
-            'fapi_fetch_preview',
-            'fapi_run_import',
-            'fapi_run_import_selected',
-            'fapi_delete_imported',
-            'fapi_get_progress',
-            'fapi_get_logs',
-            'fapi_clear_logs',
-            'fapi_get_history',
-            'fapi_rollback_import',
-            'fapi_get_dashboard',
+            'apirosync_get_connections',
+            'apirosync_create_connection',
+            'apirosync_delete_connection',
+            'apirosync_duplicate_connection',
+            'apirosync_save_connection',
+            'apirosync_analyze_api',
+            'apirosync_save_field_map',
+            'apirosync_save_transforms',
+            'apirosync_fetch_preview',
+            'apirosync_run_import',
+            'apirosync_run_import_selected',
+            'apirosync_delete_imported',
+            'apirosync_get_progress',
+            'apirosync_get_logs',
+            'apirosync_clear_logs',
+            'apirosync_get_history',
+            'apirosync_rollback_import',
+            'apirosync_get_dashboard',
         ];
         foreach ( $actions as $action ) {
-            add_action( 'wp_ajax_' . $action, [ $this, str_replace( 'fapi_', 'handle_', $action ) ] );
+            add_action( 'wp_ajax_' . $action, [ $this, str_replace( 'apirosync_', 'handle_', $action ) ] );
         }
     }
 
@@ -40,7 +40,7 @@ class FAPI_Ajax {
         if ( ! current_user_can( 'manage_woocommerce' ) ) {
             wp_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
         }
-        check_ajax_referer( 'fapi_nonce', 'nonce' );
+        check_ajax_referer( 'apirosync_nonce', 'nonce' );
     }
 
     private function conn_id(): string {
@@ -114,7 +114,7 @@ class FAPI_Ajax {
     public function handle_get_connections() {
         $this->check();
         
-        $conns = FAPI_Connection_Manager::all();
+        $conns = APIROSYNC_Connection_Manager::all();
         $list = [];
         foreach ($conns as $id => $data) {
             $data['id'] = $id;
@@ -127,21 +127,21 @@ class FAPI_Ajax {
     public function handle_create_connection() {
         $this->check();
         $label = sanitize_text_field( wp_unslash( $_POST['label'] ?? 'New API Connection' ) );
-        $id    = FAPI_Connection_Manager::create( $label );
+        $id    = APIROSYNC_Connection_Manager::create( $label );
         wp_send_json_success( [ 'id' => $id, 'message' => 'Connection created.' ] );
     }
 
     public function handle_delete_connection() {
         $this->check();
         $id = $this->conn_id();
-        FAPI_Connection_Manager::delete( $id );
+        APIROSYNC_Connection_Manager::delete( $id );
         wp_send_json_success( [ 'message' => 'Connection deleted.' ] );
     }
 
     public function handle_duplicate_connection() {
         $this->check();
         $id     = $this->conn_id();
-        $new_id = FAPI_Connection_Manager::duplicate( $id );
+        $new_id = APIROSYNC_Connection_Manager::duplicate( $id );
         if ( ! $new_id ) wp_send_json_error( [ 'message' => 'Connection not found.' ] );
         wp_send_json_success( [ 'id' => $new_id, 'message' => 'Connection duplicated.' ] );
     }
@@ -149,7 +149,7 @@ class FAPI_Ajax {
     public function handle_save_connection() {
         $this->check();
         $id      = $this->conn_id();
-        $allowed = array_keys( FAPI_Connection_Manager::defaults() );
+        $allowed = array_keys( APIROSYNC_Connection_Manager::defaults() );
         $data    = [];
         foreach ( $allowed as $key ) {
             if ( ! isset( $_POST[ $key ] ) ) continue;
@@ -164,11 +164,11 @@ class FAPI_Ajax {
             }
             $data[ $key ] = $val;
         }
-        $ok = FAPI_Connection_Manager::save( $id, $data );
+        $ok = APIROSYNC_Connection_Manager::save( $id, $data );
         if ( ! $ok ) wp_send_json_error( [ 'message' => 'Connection not found.' ] );
 
-        FAPI_Scheduler::unschedule( $id );
-        FAPI_Scheduler::schedule( $id );
+        APIROSYNC_Scheduler::unschedule( $id );
+        APIROSYNC_Scheduler::schedule( $id );
 
         wp_send_json_success( [ 'message' => 'Connection saved.' ] );
     }
@@ -176,7 +176,7 @@ class FAPI_Ajax {
     public function handle_analyze_api() {
         $this->check();
         $id       = $this->conn_id();
-        $settings = FAPI_Connection_Manager::get( $id );
+        $settings = APIROSYNC_Connection_Manager::get( $id );
         if ( ! $settings ) wp_send_json_error( [ 'message' => 'Connection not found.' ] );
 
         foreach ( [ 'api_url','api_method','api_bearer','api_basic_user','api_basic_pass',
@@ -190,7 +190,7 @@ class FAPI_Ajax {
             wp_send_json_error( [ 'message' => 'API URL is required.' ] );
         }
 
-        $analysis = FAPI_API_Fetcher::test_and_analyze( $settings );
+        $analysis = APIROSYNC_API_Fetcher::test_and_analyze( $settings );
         if ( isset( $analysis['error'] ) ) {
             wp_send_json_error( [ 'message' => $analysis['error'] ] );
         }
@@ -214,7 +214,7 @@ class FAPI_Ajax {
             $data['products_key'] = $products_key;
         }
 
-        FAPI_Connection_Manager::save( $id, $data );
+        APIROSYNC_Connection_Manager::save( $id, $data );
         wp_send_json_success( [ 'message' => 'Field mapping saved.' ] );
     }
 
@@ -224,14 +224,14 @@ class FAPI_Ajax {
         $raw = isset( $_POST['field_transforms'] ) ? wp_unslash( $_POST['field_transforms'] ) : '';
         $transforms = $this->decode_json_array( $raw, 'Invalid transform data.' );
         
-        FAPI_Connection_Manager::save( $id, [ 'field_transforms' => $transforms ] );
+        APIROSYNC_Connection_Manager::save( $id, [ 'field_transforms' => $transforms ] );
         wp_send_json_success( [ 'message' => 'Transforms saved.' ] );
     }
 
     public function handle_fetch_preview() {
         $this->check();
         $id     = $this->conn_id();
-        $result = FAPI_Importer::fetch_preview( $id );
+        $result = APIROSYNC_Importer::fetch_preview( $id );
         if ( isset( $result['error'] ) ) wp_send_json_error( [ 'message' => $result['error'] ] );
         wp_send_json_success( $result );
     }
@@ -240,7 +240,7 @@ class FAPI_Ajax {
         $this->check();
         set_time_limit( 300 );
         $id     = $this->conn_id();
-        $result = FAPI_Importer::run( $id );
+        $result = APIROSYNC_Importer::run( $id );
         if ( $result['status'] === 'error' ) wp_send_json_error( [ 'message' => $result['message'] ] );
         wp_send_json_success( $result );
     }
@@ -252,7 +252,7 @@ class FAPI_Ajax {
         $ids_raw = isset( $_POST['ids'] ) ? wp_unslash( $_POST['ids'] ) : '';
         $ids     = $this->decode_json_array( $ids_raw, 'Invalid product selection data.' );
         $ids     = array_map( 'sanitize_text_field', (array) $ids );
-        $result  = FAPI_Importer::run( $id, $ids );
+        $result  = APIROSYNC_Importer::run( $id, $ids );
         if ( $result['status'] === 'error' ) wp_send_json_error( [ 'message' => $result['message'] ] );
         wp_send_json_success( $result );
     }
@@ -260,34 +260,34 @@ class FAPI_Ajax {
     public function handle_delete_imported() {
         $this->check();
         $id    = $this->conn_id();
-        $count = FAPI_Importer::delete_imported( $id );
+        $count = APIROSYNC_Importer::delete_imported( $id );
         wp_send_json_success( [ 'message' => "{$count} product(s) deleted." ] );
     }
 
     public function handle_get_progress() {
         $this->check();
         $id = $this->conn_id();
-        wp_send_json_success( FAPI_Importer::get_import_progress( $id ) );
+        wp_send_json_success( APIROSYNC_Importer::get_import_progress( $id ) );
     }
 
     public function handle_get_logs() {
         $this->check();
         $id   = $this->conn_id();
-        $logs = FAPI_Connection_Manager::get_logs( $id );
+        $logs = APIROSYNC_Connection_Manager::get_logs( $id );
         wp_send_json_success( [ 'logs' => $logs ] );
     }
 
     public function handle_clear_logs() {
         $this->check();
         $id = $this->conn_id();
-        FAPI_Connection_Manager::clear_logs( $id );
+        APIROSYNC_Connection_Manager::clear_logs( $id );
         wp_send_json_success( [ 'message' => 'Logs cleared.' ] );
     }
 
     public function handle_get_history() {
         $this->check();
         $id = $this->conn_id();
-        $history = FAPI_History::get_history( $id );
+        $history = APIROSYNC_History::get_history( $id );
         wp_send_json_success( [ 'history' => $history ] );
     }
 
@@ -297,19 +297,19 @@ class FAPI_Ajax {
         $run_id = sanitize_text_field( wp_unslash( $_POST['run_id'] ?? '' ) );
         if ( ! $run_id ) wp_send_json_error( [ 'message' => 'run_id missing' ] );
         
-        $res = FAPI_History::rollback( $id, $run_id );
+        $res = APIROSYNC_History::rollback( $id, $run_id );
         if ( isset( $res['error'] ) ) wp_send_json_error( [ 'message' => $res['error'] ] );
         wp_send_json_success( [ 'message' => "Rollback complete. {$res['deleted']} products deleted." ] );
     }
 
     public function handle_get_dashboard() {
         $this->check();
-        $conns = FAPI_Connection_Manager::all();
+        $conns = APIROSYNC_Connection_Manager::all();
         $list = [];
         foreach ( $conns as $id => $data ) {
             $data['id'] = $id;
-            $data['wc_count'] = FAPI_Importer::count_imported( $id );
-            $data['next_run'] = FAPI_Scheduler::next_run( $id );
+            $data['wc_count'] = APIROSYNC_Importer::count_imported( $id );
+            $data['next_run'] = APIROSYNC_Scheduler::next_run( $id );
             $list[] = $data;
         }
         wp_send_json_success( [ 'connections' => $list ] );
