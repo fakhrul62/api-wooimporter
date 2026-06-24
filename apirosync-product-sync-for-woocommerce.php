@@ -21,6 +21,8 @@ define( 'APIROSYNC_VERSION', '1.0.0' );
 define( 'APIROSYNC_FILE', __FILE__ );
 define( 'APIROSYNC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'APIROSYNC_URL', plugin_dir_url( __FILE__ ) );
+define( 'APIROSYNC_BRANDING_DIR', APIROSYNC_DIR . 'branding/' );
+define( 'APIROSYNC_BRANDING_URL', APIROSYNC_URL . 'branding/' );
 
 require_once APIROSYNC_DIR . 'includes/class-apirosync-connection-manager.php';
 require_once APIROSYNC_DIR . 'includes/class-apirosync-api-fetcher.php';
@@ -53,8 +55,8 @@ add_action(
 register_activation_hook(
     __FILE__,
     function() {
-        APIROSYNC_Scheduler::schedule_all();
         APIROSYNC_Connection_Manager::maybe_migrate_legacy();
+        APIROSYNC_Scheduler::schedule_all();
     }
 );
 
@@ -62,5 +64,10 @@ register_deactivation_hook(
     __FILE__,
     function() {
         APIROSYNC_Scheduler::unschedule_all();
+        wp_unschedule_hook( 'apirosync_process_import_batch_cron' );
+
+        if ( function_exists( 'as_unschedule_all_actions' ) ) {
+            as_unschedule_all_actions( '', [], 'apirosync' );
+        }
     }
 );

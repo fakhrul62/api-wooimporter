@@ -19,7 +19,7 @@ class APIROSYNC_History {
             'imported'    => $data['imported'] ?? 0,
             'updated'     => $data['updated'] ?? 0,
             'failed'      => $data['failed'] ?? 0,
-            'product_ids' => $data['product_ids'] ?? [],
+            'created_product_ids' => array_values( array_map( 'absint', $data['created_product_ids'] ?? [] ) ),
         ]);
 
         if ( count( $history ) > 20 ) {
@@ -55,8 +55,12 @@ class APIROSYNC_History {
         $run = $history[$run_index];
         $deleted = 0;
 
-        if ( ! empty( $run['product_ids'] ) ) {
-            foreach ( $run['product_ids'] as $pid ) {
+        if ( ! empty( $run['created_product_ids'] ) ) {
+            foreach ( $run['created_product_ids'] as $pid ) {
+                if ( $conn_id !== get_post_meta( $pid, '_apirosync_conn_id', true ) ) {
+                    continue;
+                }
+
                 if ( wp_delete_post( $pid, true ) ) {
                     $deleted++;
                 }

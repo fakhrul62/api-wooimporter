@@ -21,7 +21,10 @@
         ajax(action, { conn_id: activeConnId, ...data });
 
     function showNotice(sel, msg, type = 'info') {
-        $(sel).attr('class', 'apirosync-notice ' + type).html(msg).show();
+        $(sel).attr('class', 'apirosync-notice ' + type).text(msg).show();
+    }
+    function showNoticeHtml(sel, html, type = 'info') {
+        $(sel).attr('class', 'apirosync-notice ' + type).html(html).show();
     }
     function hideNotice(sel) { $(sel).hide(); }
 
@@ -32,7 +35,26 @@
 
     function esc(str) {
         if (str == null) return '';
-        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    }
+
+    function brandIconHtml(size = 56) {
+        const iconUrl = APIROSYNC.branding && APIROSYNC.branding.icon_url ? APIROSYNC.branding.icon_url : '';
+
+        if (!iconUrl) {
+            return '<div class="apirosync-empty-icon">API</div>';
+        }
+
+        return `<img class="apirosync-brand-icon apirosync-brand-icon-empty" src="${esc(iconUrl)}" alt="" width="${size}" height="${size}" loading="eager" decoding="async">`;
+    }
+
+    function safeHttpUrl(value) {
+        try {
+            const url = new URL(String(value));
+            return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : '';
+        } catch (e) {
+            return '';
+        }
     }
 
     function humanTime(mysqlDate) {
@@ -68,7 +90,7 @@
         let html = '';
         allConns.forEach(function(c) {
             const sync  = `<div class="apirosync-sync-dot ${c.sync_enabled?'active':''}" title="Auto-sync ${c.sync_enabled?'on':'off'}"></div>`;
-            const count = `<span class="apirosync-conn-item-count">${c.wc_count||0} products</span>`;
+            const count = `<span class="apirosync-conn-item-count">${Number.parseInt(c.wc_count, 10) || 0} products</span>`;
             const url   = c.api_url ? c.api_url.replace(/^https?:\/\//,'').substring(0,30)+'' : 'Not configured';
             html += `
             <div class="apirosync-conn-item${c.id===activeConnId?' active':''}" data-id="${esc(c.id)}">
@@ -165,7 +187,7 @@
         // Reset mapping and products pane
         $('#apirosync-mapping-table-wrap').html('<div class="apirosync-map-loading"><span>Run Auto-Detect or configure your API first.</span></div>');
         $('#apirosync-sample-card').hide();
-        $('#apirosync-products-grid').html('<div class="apirosync-products-empty"><div class="apirosync-empty-icon">API</div><div>Click <strong>Refresh</strong> to fetch products.</div></div>');
+        $('#apirosync-products-grid').html(`<div class="apirosync-products-empty">${brandIconHtml()}<div>Click <strong>Refresh</strong> to fetch products.</div></div>`);
         $('#apirosync-product-count').text('');
     }
 
@@ -259,10 +281,12 @@
                 }
                 const d = res.data;
                 apirosync_analysis = d;
-                let html = ` Connected! Found <strong>${d.total_found}</strong> products in <code>${d.products_key === '__root__' ? 'root array' : '"' + d.products_key + '"'}</code>. `;
+                const totalFound = Number.parseInt(d.total_found, 10) || 0;
+                const productsKey = d.products_key === '__root__' ? 'root array' : '"' + esc(d.products_key) + '"';
+                let html = `Connected! Found <strong>${totalFound}</strong> products in <code>${productsKey}</code>. `;
                 html += `Auto-detected <strong>${Object.keys(d.map).length}</strong> field mappings. `;
                 html += `<a href="#" class="apirosync-goto-map"> Review Mapping</a>`;
-                showNotice('#apirosync-analysis-result', html, 'success');
+                showNoticeHtml('#apirosync-analysis-result', html, 'success');
             })
             .fail(() => showNotice('#apirosync-analysis-result', ' AJAX error  check your browser console.', 'error'))
             .always(() => spin($btn, false));
@@ -347,7 +371,7 @@
         connAjax('apirosync_analyze_api', fields)
             .done(function(res) {
                 if (!res.success) {
-                    $wrap.html('<div class="apirosync-map-loading"> ' + res.data.message + '</div>');
+                    $wrap.html('<div class="apirosync-map-loading">' + esc(res.data.message) + '</div>');
                     return;
                 }
                 apirosync_analysis = res.data;
@@ -451,36 +475,38 @@
 
     function loadPreview() {
         const $grid = $('#apirosync-products-grid');
-        $grid.html('<div class="apirosync-products-empty"><div class="apirosync-empty-icon">API</div><div>Fetching products</div></div>');
+        $grid.html(`<div class="apirosync-products-empty">${brandIconHtml()}<div>Fetching products</div></div>`);
         hideNotice('#apirosync-import-result');
 
         connAjax('apirosync_fetch_preview').done(function(res) {
             if (!res.success) {
-                $grid.html(`<div class="apirosync-products-empty"><div class="apirosync-empty-icon">API</div><div>${res.data.message}</div></div>`);
+                $grid.html(`<div class="apirosync-products-empty">${brandIconHtml()}<div>${esc(res.data.message)}</div></div>`);
                 return;
             }
             allProducts = res.data.products;
             $('#apirosync-product-count').text(allProducts.length + ' products');
             renderProducts(allProducts);
         }).fail(() => {
-            $grid.html('<div class="apirosync-products-empty"><div class="apirosync-empty-icon">API</div><div>AJAX error loading preview.</div></div>');
+            $grid.html(`<div class="apirosync-products-empty">${brandIconHtml()}<div>AJAX error loading preview.</div></div>`);
         });
     }
 
     function renderProducts(products) {
         if (!products.length) {
-            $('#apirosync-products-grid').html('<div class="apirosync-products-empty"><div class="apirosync-empty-icon">API</div><div>No products match.</div></div>');
+            $('#apirosync-products-grid').html(`<div class="apirosync-products-empty">${brandIconHtml()}<div>No products match.</div></div>`);
             return;
         }
         let html = '<div class="apirosync-products-grid-inner">';
         products.forEach(function(p, i) {
             const imported = p.imported ? '<div class="apirosync-imported-tag"> Imported</div>' : '';
-            const imgHtml  = p.image
-                ? `<img src="${esc(p.image)}" loading="lazy" alt="" onerror="this.parentNode.innerHTML='<div class=\\'apirosync-product-no-img\\'></div>'">`
+            const imageUrl = safeHttpUrl(p.image);
+            const imgHtml  = imageUrl
+                ? `<img class="apirosync-product-image" src="${esc(imageUrl)}" loading="lazy" alt="">`
                 : '<div class="apirosync-product-no-img"></div>';
-            const price = p.price !== '' && p.price !== null ? `<span class="apirosync-product-price">$${parseFloat(p.price).toFixed(2)}</span>` : '';
+            const numericPrice = Number.parseFloat(p.price);
+            const price = Number.isFinite(numericPrice) ? `<span class="apirosync-product-price">$${numericPrice.toFixed(2)}</span>` : '';
             const cat   = p.cat ? `<span class="apirosync-product-cat">${esc(p.cat)}</span>` : '';
-            const stock = p.stock !== '' && p.stock !== null ? `<span class="apirosync-product-stock">Stock: ${p.stock}</span>` : '';
+            const stock = p.stock !== '' && p.stock !== null ? `<span class="apirosync-product-stock">Stock: ${esc(p.stock)}</span>` : '';
             html += `
             <div class="apirosync-product-card${p.imported?' already-imported':''}" data-ext-id="${esc(p.ext_id)}" data-idx="${i}">
               ${imported}
@@ -494,6 +520,9 @@
         });
         html += '</div>';
         $('#apirosync-products-grid').html(html);
+        $('.apirosync-product-image').on('error', function() {
+            $(this).replaceWith('<div class="apirosync-product-no-img"></div>');
+        });
         updateSelectedCount();
     }
 
@@ -518,7 +547,7 @@
     $('#apirosync-product-search').on('input', function() {
         const q = $(this).val().toLowerCase();
         if (!q) { renderProducts(allProducts); return; }
-        renderProducts(allProducts.filter(p => (p.title||'').toLowerCase().includes(q)||(p.cat||'').toLowerCase().includes(q)));
+        renderProducts(allProducts.filter(p => String(p.title || '').toLowerCase().includes(q) || String(p.cat || '').toLowerCase().includes(q)));
     });
     $('#apirosync-btn-select-all').on('click', function() {
         $('.apirosync-product-checkbox').prop('checked', true);
@@ -582,7 +611,7 @@
                     showNotice('#apirosync-import-result', ' ' + res.data.message, 'error');
                     return;
                 }
-                showNotice('#apirosync-import-result', ` <strong>${res.data.message}</strong>`, 'success');
+                showNotice('#apirosync-import-result', res.data.message, 'success');
                 if (pollInterval) clearInterval(pollInterval);
                 pollInterval = setInterval(pollProgress, 2000);
             })
@@ -684,10 +713,13 @@
         }
         let html = '';
         history.forEach(function(run) {
+            const imported = Number.parseInt(run.imported, 10) || 0;
+            const updated = Number.parseInt(run.updated, 10) || 0;
+            const failed = Number.parseInt(run.failed, 10) || 0;
             html += `<div class="apirosync-log-row" style="display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid #eee;">
               <div>
-                  <span class="log-time" style="font-weight:600;color:#333;">${humanTime(run.date)}</span>
-                  <span style="margin-left:15px;color:#666;">Imported: <strong>${run.imported}</strong>, Updated: <strong>${run.updated}</strong>, Failed: <strong>${run.failed}</strong></span>
+                  <span class="log-time" style="font-weight:600;color:#333;">${esc(humanTime(run.date))}</span>
+                  <span style="margin-left:15px;color:#666;">Imported: <strong>${imported}</strong>, Updated: <strong>${updated}</strong>, Failed: <strong>${failed}</strong></span>
               </div>
               <button class="apirosync-btn danger-ghost apirosync-btn-rollback" data-run="${esc(run.id)}" style="padding:4px 8px;font-size:12px;">Rollback</button>
             </div>`;

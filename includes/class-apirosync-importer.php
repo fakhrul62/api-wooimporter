@@ -84,16 +84,15 @@ class APIROSYNC_Importer {
 
         $imported = $updated = $failed = 0;
         $errors = [];
-        $product_ids = [];
+        $created_product_ids = [];
 
         foreach ( $products as $item ) {
             $result = self::import_single( $item, $conn_id, $settings );
             if ( is_numeric( $result ) ) {
                 $imported++;
-                $product_ids[] = $result;
+                $created_product_ids[] = (int) $result;
             } elseif ( strpos( $result, 'updated:' ) === 0 ) {
                 $updated++;
-                $product_ids[] = (int) str_replace( 'updated:', '', $result );
             } else {
                 $failed++;
                 $errors[] = $result;
@@ -107,7 +106,7 @@ class APIROSYNC_Importer {
             'imported' => $imported,
             'updated'  => $updated,
             'failed'   => $failed,
-            'product_ids' => $product_ids
+            'created_product_ids' => $created_product_ids,
         ] );
 
         if ( $res['has_more'] && empty( $only_ids ) ) {
@@ -161,6 +160,7 @@ class APIROSYNC_Importer {
 
         if ( ! empty( $ext_id ) ) {
             global $wpdb;
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Narrow prepared lookup; caching would become stale during the active import.
             $existing_id = $wpdb->get_var( $wpdb->prepare(
                 "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_apirosync_source' AND meta_value = %s LIMIT 1",
                 $source_key
@@ -339,6 +339,7 @@ class APIROSYNC_Importer {
             $imported  = false;
             if ( ! empty( $display['ext_id'] ) ) {
                 global $wpdb;
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Narrow prepared lookup; preview status must reflect current post meta.
                 $imported = (bool) $wpdb->get_var( $wpdb->prepare(
                     "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_apirosync_source' AND meta_value = %s LIMIT 1",
                     $source_key
@@ -358,6 +359,7 @@ class APIROSYNC_Importer {
 
     public static function count_imported( string $conn_id ): int {
         global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared aggregate query used for current dashboard counts.
         return (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT COUNT(post_id) FROM {$wpdb->postmeta} WHERE meta_key = '_apirosync_conn_id' AND meta_value = %s",
             $conn_id
@@ -369,6 +371,7 @@ class APIROSYNC_Importer {
         $total_deleted = 0;
         
         while ( true ) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared mutating batch loop; caching would be incorrect.
             $ids = $wpdb->get_col( $wpdb->prepare(
                 "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_apirosync_conn_id' AND meta_value = %s LIMIT 50",
                 $conn_id

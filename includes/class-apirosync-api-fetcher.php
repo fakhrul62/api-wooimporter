@@ -150,7 +150,7 @@ class APIROSYNC_API_Fetcher {
         ];
         if ( $body !== null ) $args['body'] = $body;
 
-        $response = wp_remote_request( $url, $args );
+        $response = wp_safe_remote_request( $url, $args );
 
         if ( is_wp_error( $response ) ) return $response->get_error_message();
 
@@ -179,4 +179,3 @@ class APIROSYNC_API_Fetcher {
         return APIROSYNC_Field_Mapper::analyze( $raw );
     }
 }
-

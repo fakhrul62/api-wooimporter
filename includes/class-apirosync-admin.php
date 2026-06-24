@@ -15,6 +15,32 @@ class APIROSYNC_Admin {
         add_action( 'admin_enqueue_scripts',  [ $this, 'enqueue' ] );
     }
 
+    private function branding_url( $filename ) {
+        $path = APIROSYNC_BRANDING_DIR . $filename;
+
+        if ( ! file_exists( $path ) ) {
+            return '';
+        }
+
+        return APIROSYNC_BRANDING_URL . $filename;
+    }
+
+    private function render_brand_icon( $class = 'apirosync-brand-icon', $size = 48, $filename = 'icon-128x128.png' ) {
+        $icon_url = $this->branding_url( $filename );
+
+        if ( ! $icon_url ) {
+            echo '<span class="apirosync-logo-icon">API</span>';
+            return;
+        }
+
+        printf(
+            '<img class="%1$s" src="%2$s" alt="" width="%3$d" height="%3$d" loading="eager" decoding="async" />',
+            esc_attr( $class ),
+            esc_url( $icon_url ),
+            absint( $size )
+        );
+    }
+
     public function register_menu() {
         add_menu_page(
             'ApiroSync Product Sync',
@@ -22,7 +48,7 @@ class APIROSYNC_Admin {
             'manage_woocommerce',
             'apirosync-product-sync',
             [ $this, 'render_page' ],
-            'dashicons-cloud-upload',
+            $this->branding_url( 'menu-icon-20x20.png' ) ?: 'dashicons-cloud-upload',
             56
         );
     }
@@ -37,6 +63,10 @@ class APIROSYNC_Admin {
             'wc_fields'   => APIROSYNC_Field_Mapper::WC_FIELDS,
             'wc_active'   => class_exists( 'WooCommerce' ),
             'version'     => APIROSYNC_VERSION,
+            'branding'    => [
+                'icon_url' => $this->branding_url( 'icon-128x128.png' ),
+                'logo_url' => $this->branding_url( 'logo.png' ),
+            ],
         ]);
     }
 
@@ -48,7 +78,7 @@ class APIROSYNC_Admin {
         <div class="apirosync-header">
             <div class="apirosync-header-inner">
                 <div class="apirosync-logo">
-                    <span class="apirosync-logo-icon">API</span>
+                    <?php $this->render_brand_icon( 'apirosync-brand-icon apirosync-brand-icon-header', 48, 'logo.png' ); ?>
                     <div>
                         <div class="apirosync-logo-title">ApiroSync Product Sync <span class="apirosync-version-badge">v<?php echo esc_html(APIROSYNC_VERSION); ?></span></div>
                         <div class="apirosync-logo-sub">Multiple REST APIs to WooCommerce, fully isolated per connection</div>
@@ -81,7 +111,7 @@ class APIROSYNC_Admin {
             <!-- RIGHT: Editor Area -->
             <div class="apirosync-editor" id="apirosync-editor">
                 <div class="apirosync-editor-empty" id="apirosync-editor-empty">
-                    <div class="apirosync-empty-icon">API</div>
+                    <?php $this->render_brand_icon( 'apirosync-brand-icon apirosync-brand-icon-empty', 72 ); ?>
                     <div class="apirosync-empty-title">No connection selected</div>
                     <div class="apirosync-empty-sub">Select a connection from the sidebar or create a new one to get started.</div>
                     <button class="apirosync-btn primary" id="apirosync-btn-add-conn-center"> Add First API Connection</button>
@@ -315,7 +345,7 @@ class APIROSYNC_Admin {
                             <div id="apirosync-import-result" class="apirosync-notice" style="display:none;"></div>
                             <div id="apirosync-products-grid">
                                 <div class="apirosync-products-empty">
-                                    <div class="apirosync-empty-icon">API</div>
+                                    <?php $this->render_brand_icon( 'apirosync-brand-icon apirosync-brand-icon-empty', 56 ); ?>
                                     <div>Click <strong>Refresh</strong> to fetch products from the API</div>
                                 </div>
                             </div>

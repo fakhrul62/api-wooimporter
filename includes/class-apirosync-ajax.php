@@ -44,6 +44,7 @@ class APIROSYNC_Ajax {
     }
 
     private function conn_id(): string {
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by check() before this method is called.
         $id = sanitize_text_field( wp_unslash( $_POST['conn_id'] ?? '' ) );
         if ( ! $id ) wp_send_json_error( [ 'message' => 'conn_id is required.' ] );
         return $id;
@@ -126,6 +127,7 @@ class APIROSYNC_Ajax {
 
     public function handle_create_connection() {
         $this->check();
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above.
         $label = sanitize_text_field( wp_unslash( $_POST['label'] ?? 'New API Connection' ) );
         $id    = APIROSYNC_Connection_Manager::create( $label );
         wp_send_json_success( [ 'id' => $id, 'message' => 'Connection created.' ] );
@@ -152,7 +154,9 @@ class APIROSYNC_Ajax {
         $allowed = array_keys( APIROSYNC_Connection_Manager::defaults() );
         $data    = [];
         foreach ( $allowed as $key ) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above.
             if ( ! isset( $_POST[ $key ] ) ) continue;
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce is verified above and each value is sanitized by type below.
             $val = wp_unslash( $_POST[ $key ] );
             
             if ( in_array( $key, [ 'sync_enabled','import_images','update_existing' ], true ) ) {
@@ -181,7 +185,9 @@ class APIROSYNC_Ajax {
 
         foreach ( [ 'api_url','api_method','api_bearer','api_basic_user','api_basic_pass',
                     'api_key_header','api_key_param','api_key_value','api_extra_params','api_body' ] as $f ) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above.
             if ( isset( $_POST[ $f ] ) ) {
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce is verified above and the value is sanitized by field type.
                 $settings[ $f ] = $this->sanitize_connection_value( $f, wp_unslash( $_POST[ $f ] ) );
             }
         }
@@ -200,6 +206,7 @@ class APIROSYNC_Ajax {
     public function handle_save_field_map() {
         $this->check();
         $id      = $this->conn_id();
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce is verified above and the decoded array is recursively sanitized.
         $raw_map = isset( $_POST['field_map'] ) ? wp_unslash( $_POST['field_map'] ) : '';
         $map     = $this->decode_json_array( $raw_map, 'Invalid field map data.' );
 
@@ -209,6 +216,7 @@ class APIROSYNC_Ajax {
         }
 
         $data = [ 'field_map' => $clean ];
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above; value is unslashed and sanitized.
         $products_key = isset( $_POST['products_key'] ) ? sanitize_text_field( wp_unslash( $_POST['products_key'] ) ) : '';
         if ( '' !== $products_key ) {
             $data['products_key'] = $products_key;
@@ -221,6 +229,7 @@ class APIROSYNC_Ajax {
     public function handle_save_transforms() {
         $this->check();
         $id = $this->conn_id();
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce is verified above and the decoded array is recursively sanitized.
         $raw = isset( $_POST['field_transforms'] ) ? wp_unslash( $_POST['field_transforms'] ) : '';
         $transforms = $this->decode_json_array( $raw, 'Invalid transform data.' );
         
@@ -238,7 +247,6 @@ class APIROSYNC_Ajax {
 
     public function handle_run_import() {
         $this->check();
-        set_time_limit( 300 );
         $id     = $this->conn_id();
         $result = APIROSYNC_Importer::run( $id );
         if ( $result['status'] === 'error' ) wp_send_json_error( [ 'message' => $result['message'] ] );
@@ -247,8 +255,8 @@ class APIROSYNC_Ajax {
 
     public function handle_run_import_selected() {
         $this->check();
-        set_time_limit( 300 );
         $id      = $this->conn_id();
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce is verified above and selected IDs are sanitized after decoding.
         $ids_raw = isset( $_POST['ids'] ) ? wp_unslash( $_POST['ids'] ) : '';
         $ids     = $this->decode_json_array( $ids_raw, 'Invalid product selection data.' );
         $ids     = array_map( 'sanitize_text_field', (array) $ids );
@@ -294,6 +302,7 @@ class APIROSYNC_Ajax {
     public function handle_rollback_import() {
         $this->check();
         $id = $this->conn_id();
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above; value is unslashed and sanitized.
         $run_id = sanitize_text_field( wp_unslash( $_POST['run_id'] ?? '' ) );
         if ( ! $run_id ) wp_send_json_error( [ 'message' => 'run_id missing' ] );
         

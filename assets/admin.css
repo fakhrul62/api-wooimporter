@@ -12,12 +12,17 @@
     --border-light: #dcdcde;
     --text:         #3c434a;
     --text-muted:   #646970;
-    --primary:      #2271b1;
-    --primary-dark: #135e96;
+    --primary:      #0787f2;
+    --primary-dark: #00336f;
+    --primary-soft: #eaf5ff;
+    --primary-rgb:  7,135,242;
+    --primary-dark-rgb: 0,51,111;
+    --accent:       #00a6ff;
+    --accent-rgb:   0,166,255;
     --success:      #00a32a;
     --warning:      #dba617;
     --error:        #d63638;
-    --info:         #2271b1;
+    --info:         var(--primary);
     --radius:       4px;
     --radius-sm:    3px;
     --shadow:       0 1px 3px rgba(0,0,0,.1);
@@ -32,6 +37,10 @@
 .apirosync-header-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 .apirosync-logo { display: flex; align-items: center; gap: 14px; }
 .apirosync-logo-icon { font-size: 28px; line-height: 1; }
+.apirosync-brand-icon { display: block; flex: 0 0 auto; object-fit: contain; }
+.apirosync-brand-icon-header { width: 48px; height: 48px; border-radius: var(--radius); }
+.apirosync-brand-icon-empty { width: 56px; height: 56px; border-radius: var(--radius); }
+#apirosync-editor-empty .apirosync-brand-icon-empty { width: 72px; height: 72px; }
 .apirosync-logo-title { font-size: 18px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .apirosync-logo-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 .apirosync-version-badge { font-size: 11px; background: var(--primary); color: #fff; padding: 2px 7px; border-radius: 20px; font-weight: 600; }
@@ -39,7 +48,7 @@
 .apirosync-status-pill { font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
 .apirosync-status-pill.ok   { background: rgba(16,185,129,.15); color: var(--success); border: 1px solid rgba(16,185,129,.3); }
 .apirosync-status-pill.err  { background: rgba(239,68,68,.15);  color: var(--error);   border: 1px solid rgba(239,68,68,.3); }
-.apirosync-status-pill.info { background: rgba(99,102,241,.15); color: var(--primary); border: 1px solid rgba(99,102,241,.3); }
+.apirosync-status-pill.info { background: rgba(var(--primary-rgb),.12); color: var(--primary-dark); border: 1px solid rgba(var(--primary-rgb),.28); }
 
 /*  Layout  */
 .apirosync-layout { display: flex; height: calc(100vh - 95px); overflow: hidden; }
@@ -56,7 +65,7 @@
 
 .apirosync-conn-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; border: 1px solid transparent; transition: background .15s, border-color .15s; margin-bottom: 4px; position: relative; }
 .apirosync-conn-item:hover { background: var(--bg-hover); }
-.apirosync-conn-item.active { background: rgba(34,113,177,.12); border-color: rgba(34,113,177,.4); }
+.apirosync-conn-item.active { background: rgba(var(--primary-rgb),.12); border-color: rgba(var(--primary-rgb),.4); }
 .apirosync-conn-item-info { flex: 1; min-width: 0; }
 .apirosync-conn-item-label { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .apirosync-conn-item-url { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -135,7 +144,7 @@
 .apirosync-notice.success { background: rgba(16,185,129,.12); color: #34d399; border: 1px solid rgba(16,185,129,.3); }
 .apirosync-notice.error   { background: rgba(239,68,68,.12);  color: #f87171; border: 1px solid rgba(239,68,68,.3); }
 .apirosync-notice.warning { background: rgba(245,158,11,.12); color: #fbbf24; border: 1px solid rgba(245,158,11,.3); }
-.apirosync-notice.info    { background: rgba(59,130,246,.12); color: #60a5fa; border: 1px solid rgba(59,130,246,.3); }
+.apirosync-notice.info    { background: rgba(var(--primary-rgb),.1); color: var(--primary-dark); border: 1px solid rgba(var(--primary-rgb),.28); }
 
 /*  Field Mapping  */
 .apirosync-map-loading { padding: 40px; text-align: center; color: var(--text-muted); font-size: 13px; }
@@ -161,7 +170,7 @@
 .apirosync-products-grid-inner { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
 .apirosync-product-card { background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; cursor: pointer; transition: border-color .15s, transform .1s; position: relative; user-select: none; }
 .apirosync-product-card:hover { border-color: var(--border-light); transform: translateY(-1px); }
-.apirosync-product-card.selected { border-color: var(--primary); background: rgba(34,113,177,.08); }
+.apirosync-product-card.selected { border-color: var(--primary); background: rgba(var(--primary-rgb),.08); }
 .apirosync-product-card.already-imported { opacity: .7; }
 .apirosync-product-checkbox { position: absolute; top: 8px; left: 8px; z-index: 2; cursor: pointer; width: 16px; height: 16px; accent-color: var(--primary); }
 .apirosync-imported-tag { position: absolute; top: 8px; right: 8px; background: rgba(16,185,129,.2); color: var(--success); font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 3px; z-index: 2; }
@@ -172,11 +181,11 @@
 .apirosync-product-title { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .apirosync-product-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .apirosync-product-price { font-size: 11px; background: rgba(16,185,129,.1); color: var(--success); padding: 1px 6px; border-radius: 3px; }
-.apirosync-product-cat { font-size: 11px; background: rgba(99,102,241,.1); color: var(--primary); padding: 1px 6px; border-radius: 3px; }
+.apirosync-product-cat { font-size: 11px; background: rgba(var(--primary-rgb),.1); color: var(--primary-dark); padding: 1px 6px; border-radius: 3px; }
 .apirosync-product-stock { font-size: 11px; color: var(--text-muted); }
 .apirosync-progress-bar-wrap { background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px; }
 .apirosync-progress-bar { background: var(--border); border-radius: 4px; height: 6px; overflow: hidden; }
-.apirosync-progress-fill { height: 100%; background: linear-gradient(90deg,var(--primary),var(--success)); border-radius: 4px; transition: width 1s ease; width: 0; }
+.apirosync-progress-fill { height: 100%; background: linear-gradient(90deg,var(--primary),var(--accent)); border-radius: 4px; transition: width 1s ease; width: 0; }
 .apirosync-progress-label { font-size: 12px; color: var(--text-muted); margin-top: 6px; display: block; }
 
 /*  Schedule  */
@@ -195,5 +204,5 @@
 .log-badge.success { background: rgba(16,185,129,.15); color: var(--success); }
 .log-badge.error   { background: rgba(239,68,68,.15);  color: var(--error); }
 .log-badge.warning { background: rgba(245,158,11,.15); color: var(--warning); }
-.log-badge.info    { background: rgba(59,130,246,.15); color: var(--info); }
+.log-badge.info    { background: rgba(var(--primary-rgb),.14); color: var(--primary-dark); }
 .log-msg { color: var(--text); flex: 1; }

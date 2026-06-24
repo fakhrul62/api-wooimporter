@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 class APIROSYNC_Scheduler {
 
     private static $instance;
+    private $hook_callbacks = [];
     const HOOK_PREFIX = 'apirosync_auto_sync_';
 
     public static function get_instance() {
@@ -15,11 +16,31 @@ class APIROSYNC_Scheduler {
         // Register hooks for all existing connections
         $index = APIROSYNC_Connection_Manager::get_index();
         foreach ( array_keys( $index ) as $id ) {
-            add_action( self::HOOK_PREFIX . $id, function() use ( $id ) {
-                $this->run_connection( $id );
-            });
+            $this->register_hook( $id );
         }
         add_action( 'update_option_' . APIROSYNC_Connection_Manager::INDEX_KEY, [ $this, 'resync_all_hooks' ] );
+    }
+
+    private function register_hook( string $id ): void {
+        if ( isset( $this->hook_callbacks[ $id ] ) ) {
+            return;
+        }
+
+        $callback = function() use ( $id ) {
+            $this->run_connection( $id );
+        };
+
+        $this->hook_callbacks[ $id ] = $callback;
+        add_action( self::HOOK_PREFIX . $id, $callback );
+    }
+
+    private function unregister_hook( string $id ): void {
+        if ( ! isset( $this->hook_callbacks[ $id ] ) ) {
+            return;
+        }
+
+        remove_action( self::HOOK_PREFIX . $id, $this->hook_callbacks[ $id ] );
+        unset( $this->hook_callbacks[ $id ] );
     }
 
     public function run_connection( string $id ): void {
@@ -41,12 +62,9 @@ class APIROSYNC_Scheduler {
         if ( ! wp_next_scheduled( $hook ) ) {
             wp_schedule_event( time(), $interval, $hook );
         }
-        // Ensure the action is registered in the current request
-        if ( ! has_action( $hook ) ) {
-            add_action( $hook, function() use ( $id ) {
-                ( new self() )->run_connection( $id );
-            });
-        }
+
+        // Ensure this singleton owns exactly one callback for the connection.
+        self::get_instance()->register_hook( $id );
     }
 
     public static function unschedule( string $id ): void {
@@ -54,6 +72,10 @@ class APIROSYNC_Scheduler {
         $ts   = wp_next_scheduled( $hook );
         if ( $ts ) wp_unschedule_event( $ts, $hook );
         wp_unschedule_hook( $hook );
+
+        if ( self::$instance ) {
+            self::$instance->unregister_hook( $id );
+        }
     }
 
     public static function schedule_all(): void {
